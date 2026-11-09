@@ -2912,7 +2912,7 @@ body { overflow-x: hidden; }
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-teal-400/20 border border-teal-300/40 flex items-center justify-center text-2xl"><i class="fas fa-user-shield"></i></div>
       <div>
-        <div class="text-xs font-bold uppercase tracking-widest text-teal-300">Private family access</div>
+        <div class="text-xs font-bold uppercase tracking-widest text-teal-300">Secure administration & family access</div>
         <h2 class="text-2xl font-extrabold">Athlete Development Profile</h2>
         <p class="text-sm text-teal-100 mt-1">Assessments, competition results and individual progress history.</p>
       </div>
@@ -2922,24 +2922,17 @@ body { overflow-x: hidden; }
   <div id="athlete-portal-login" class="max-w-xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
     <div class="text-center mb-5">
       <div class="mx-auto w-14 h-14 rounded-full bg-teal-50 text-teal-700 flex items-center justify-center text-2xl"><i class="fas fa-lock"></i></div>
-      <h3 class="text-xl font-extrabold text-slate-900 mt-3">Parent / Guardian Login</h3>
-      <p class="text-sm text-slate-500 mt-1">Sign in to view only the athlete profile linked to your account.</p>
+      <h3 class="text-xl font-extrabold text-slate-900 mt-3">Admin / Parent Access</h3>
+      <p class="text-sm text-slate-500 mt-1">Administrators can view and manage all athlete records. Parents can view only their linked athlete profiles.</p>
     </div>
-    <form onsubmit="event.preventDefault(); athletePortalSignIn();" class="space-y-4">
+    <form onsubmit="event.preventDefault(); athletePortalSendAccessLink();" class="space-y-4">
       <div>
         <label for="athlete-portal-email" class="block text-xs font-bold text-slate-600 mb-1">Email address</label>
-        <input id="athlete-portal-email" type="email" autocomplete="username" required class="w-full rounded-lg border border-slate-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Parent email address">
+        <input id="athlete-portal-email" type="email" autocomplete="email" required class="w-full rounded-lg border border-slate-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Enter your registered email address">
       </div>
-      <div>
-        <label for="athlete-portal-password" class="block text-xs font-bold text-slate-600 mb-1">Password</label>
-        <input id="athlete-portal-password" type="password" autocomplete="current-password" required class="w-full rounded-lg border border-slate-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Your password">
-      </div>
-      <button type="submit" class="w-full rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 text-sm"><i class="fas fa-right-to-bracket mr-2"></i>Sign In</button>
+      <button type="submit" class="w-full rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 text-sm"><i class="fas fa-envelope mr-2"></i>Send Secure Sign-In Link</button>
     </form>
-    <div class="text-center mt-4">
-      <button type="button" onclick="athletePortalResetPassword()" class="text-xs font-bold text-teal-700 hover:underline">Forgot password?</button>
-    </div>
-    <p class="text-[11px] text-slate-400 text-center mt-4">Access is provided by Tornadoes Administration. If you have not received your login details, please contact the club.</p>
+    <p class="text-[11px] text-slate-400 text-center mt-4">Administration and approved parents receive secure access links by email. Your access level is determined automatically.</p>
   </div>
 
   <div id="athlete-portal-dashboard" class="hidden space-y-5">
@@ -3263,17 +3256,19 @@ body { overflow-x: hidden; }
             }
         }
 
-        async function athletePortalSignIn() {
+        async function athletePortalSendAccessLink() {
             const email = document.getElementById('athlete-portal-email').value.trim();
-            const password = document.getElementById('athlete-portal-password').value;
             try {
                 const client = getTornadoesPortalClient();
-                portalStatus('Signing in securely…', false);
-                const result = await client.auth.signInWithPassword({ email: email, password: password });
+                portalStatus('Sending your secure sign-in link…', false);
+                const result = await client.auth.signInWithOtp({
+                    email: email,
+                    options: { emailRedirectTo: window.location.origin, shouldCreateUser: false }
+                });
                 if (result.error) throw result.error;
-                await loadAthletePortal(result.data.session);
+                portalStatus('If this email belongs to an approved account, a secure sign-in link has been sent. Check your inbox.', false);
             } catch (error) {
-                portalStatus(error.message || 'Sign-in failed. Check your email and password.', true);
+                portalStatus(error.message || 'Unable to send the sign-in link.', true);
             }
         }
 
@@ -3312,7 +3307,19 @@ body { overflow-x: hidden; }
             document.getElementById('athlete-portal-dashboard').classList.remove('hidden');
             document.getElementById('athlete-portal-user').textContent = session.user.email || 'Authenticated account';
             const container = document.getElementById('athlete-portal-profiles');
-            container.innerHTML = '<div class="bg-white rounded-xl border border-slate-200 p-6 text-sm text-slate-500">Loading your athlete profile…</div>';
+            container.innerHTML = '<div class="bg-white rounded-xl border border-slate-200 p-6 text-sm text-slate-500">Loading athlete records…</div>';
+
+            const staffResult = await client.from('artistic_portal_staff')
+                .select('role')
+                .eq('user_id', session.user.id)
+                .eq('is_active', true)
+                .maybeSingle();
+            if (staffResult.error) throw staffResult.error;
+            const isAdmin = !!staffResult.data && staffResult.data.role === 'admin';
+            const signedInNote = document.querySelector('#athlete-portal-dashboard .text-xs.text-slate-500.mt-1');
+            if (signedInNote) signedInNote.textContent = isAdmin
+                ? 'Administrator access: all active athlete profiles and assessment records are available.'
+                : 'Only profiles assigned to this account are shown.';
 
             const profileResult = await client.from('artistic_athlete_profiles')
                 .select('id,full_name,category')
@@ -3368,7 +3375,7 @@ body { overflow-x: hidden; }
                 html += '</section>';
             }
             container.innerHTML = html;
-            portalStatus('Your athlete records have loaded. Only records linked to this signed-in account are available.', false);
+            portalStatus(isAdmin ? 'Admin dashboard loaded. All active athlete records are available.' : 'Your linked athlete records have loaded.', false);
         }
 
         function switchTab(tabId) {
