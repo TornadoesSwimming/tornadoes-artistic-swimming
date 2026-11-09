@@ -149,6 +149,7 @@ body { overflow-x: hidden; }
 }
 </style>
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=4">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.102.0/dist/umd/supabase.js" defer></script>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen">
 <header class="bg-gradient-to-r from-slate-900 via-teal-900 to-slate-900 text-white shadow-md">
@@ -221,6 +222,10 @@ body { overflow-x: hidden; }
 <button class="tab-btn px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 flex items-center gap-2" id="tab-ai-assistant" onclick="switchTab('ai-assistant')">
 <i class="fas fa-robot text-teal-600"></i> Parent &amp; Athlete AI
             </button>
+
+<button class="tab-btn px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 flex items-center gap-2" id="tab-athlete-profile" onclick="switchTab('athlete-profile')">
+<i class="fas fa-user-shield text-emerald-600"></i> Athlete Profile
+</button>
 </div>
 <div class="tab-section space-y-6" id="section-roster">
 <div class="bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-xl p-5 shadow-md flex flex-col md:flex-row justify-between items-center gap-4">
@@ -2901,7 +2906,61 @@ body { overflow-x: hidden; }
     </div>
   </div>
 </div>
-</div></main>
+</div>
+<div class="tab-section hidden space-y-6" id="section-athlete-profile">
+  <div class="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-900 to-slate-900 text-white p-6 shadow-md">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 rounded-xl bg-teal-400/20 border border-teal-300/40 flex items-center justify-center text-2xl"><i class="fas fa-user-shield"></i></div>
+      <div>
+        <div class="text-xs font-bold uppercase tracking-widest text-teal-300">Private family access</div>
+        <h2 class="text-2xl font-extrabold">Athlete Development Profile</h2>
+        <p class="text-sm text-teal-100 mt-1">Assessments, competition results and individual progress history.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="athlete-portal-login" class="max-w-xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+    <div class="text-center mb-5">
+      <div class="mx-auto w-14 h-14 rounded-full bg-teal-50 text-teal-700 flex items-center justify-center text-2xl"><i class="fas fa-lock"></i></div>
+      <h3 class="text-xl font-extrabold text-slate-900 mt-3">Parent / Guardian Login</h3>
+      <p class="text-sm text-slate-500 mt-1">Sign in to view only the athlete profile linked to your account.</p>
+    </div>
+    <form onsubmit="event.preventDefault(); athletePortalSignIn();" class="space-y-4">
+      <div>
+        <label for="athlete-portal-email" class="block text-xs font-bold text-slate-600 mb-1">Email address</label>
+        <input id="athlete-portal-email" type="email" autocomplete="username" required class="w-full rounded-lg border border-slate-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Parent email address">
+      </div>
+      <div>
+        <label for="athlete-portal-password" class="block text-xs font-bold text-slate-600 mb-1">Password</label>
+        <input id="athlete-portal-password" type="password" autocomplete="current-password" required class="w-full rounded-lg border border-slate-300 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Your password">
+      </div>
+      <button type="submit" class="w-full rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 text-sm"><i class="fas fa-right-to-bracket mr-2"></i>Sign In</button>
+    </form>
+    <div class="text-center mt-4">
+      <button type="button" onclick="athletePortalResetPassword()" class="text-xs font-bold text-teal-700 hover:underline">Forgot password?</button>
+    </div>
+    <p class="text-[11px] text-slate-400 text-center mt-4">Access is provided by Tornadoes Administration. If you have not received your login details, please contact the club.</p>
+  </div>
+
+  <div id="athlete-portal-dashboard" class="hidden space-y-5">
+    <div class="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div>
+        <div class="text-xs uppercase tracking-wider font-bold text-teal-700">Signed in</div>
+        <div id="athlete-portal-user" class="font-bold text-slate-900"></div>
+        <p class="text-xs text-slate-500 mt-1">Only profiles assigned to this account are shown.</p>
+      </div>
+      <button type="button" onclick="athletePortalSignOut()" class="rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"><i class="fas fa-right-from-bracket mr-2"></i>Sign Out</button>
+    </div>
+    <div id="athlete-portal-profiles" class="space-y-5"></div>
+  </div>
+
+  <div id="athlete-portal-status" class="hidden rounded-lg p-4 text-sm" role="status" aria-live="polite"></div>
+  <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
+    <strong>Assessment note:</strong> ASAJ percentiles compare completed results within the same category and assessment area. A partial or unrecorded test is not treated as a score of zero.
+  </div>
+</div>
+
+</main>
 <script>
         const evalData = {
             supernovices: {
@@ -3145,6 +3204,173 @@ body { overflow-x: hidden; }
             }
         };
 
+
+        // Secure Athlete Profile portal. Data access is enforced by Supabase Auth + database RLS.
+        const TORNADOES_SUPABASE_URL = 'https://wzxkowvqrrxqkzcqujke.supabase.co';
+        const TORNADOES_SUPABASE_KEY = 'sb_publishable_5YGTef9RMZH3YtPyDdD1aQ_0VawKDZS';
+        let tornadoesPortalClient = null;
+        let tornadoesPortalListenerReady = false;
+
+        function getTornadoesPortalClient() {
+            if (!window.supabase || !window.supabase.createClient) {
+                throw new Error('The secure login service is still loading. Please refresh the Hub and try again.');
+            }
+            if (!tornadoesPortalClient) {
+                tornadoesPortalClient = window.supabase.createClient(TORNADOES_SUPABASE_URL, TORNADOES_SUPABASE_KEY);
+            }
+            return tornadoesPortalClient;
+        }
+
+        function portalEscape(value) {
+            return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+                return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch];
+            });
+        }
+
+        function portalStatus(message, isError) {
+            const el = document.getElementById('athlete-portal-status');
+            if (!el) return;
+            el.textContent = message;
+            el.className = 'rounded-lg p-4 text-sm ' + (isError ? 'bg-rose-50 border border-rose-200 text-rose-800' : 'bg-teal-50 border border-teal-200 text-teal-800');
+            el.classList.remove('hidden');
+        }
+
+        function portalShowLogin() {
+            document.getElementById('athlete-portal-login').classList.remove('hidden');
+            document.getElementById('athlete-portal-dashboard').classList.add('hidden');
+        }
+
+        async function initAthletePortal() {
+            try {
+                const client = getTornadoesPortalClient();
+                if (!tornadoesPortalListenerReady) {
+                    client.auth.onAuthStateChange(function(event, session) {
+                        if (session) {
+                            setTimeout(function() { loadAthletePortal(session); }, 0);
+                        } else {
+                            portalShowLogin();
+                        }
+                    });
+                    tornadoesPortalListenerReady = true;
+                }
+                const result = await client.auth.getSession();
+                if (result.error) throw result.error;
+                if (result.data.session) await loadAthletePortal(result.data.session);
+                else portalShowLogin();
+            } catch (error) {
+                portalShowLogin();
+                portalStatus(error.message || 'Unable to initialize secure login.', true);
+            }
+        }
+
+        async function athletePortalSignIn() {
+            const email = document.getElementById('athlete-portal-email').value.trim();
+            const password = document.getElementById('athlete-portal-password').value;
+            try {
+                const client = getTornadoesPortalClient();
+                portalStatus('Signing in securely…', false);
+                const result = await client.auth.signInWithPassword({ email: email, password: password });
+                if (result.error) throw result.error;
+                await loadAthletePortal(result.data.session);
+            } catch (error) {
+                portalStatus(error.message || 'Sign-in failed. Check your email and password.', true);
+            }
+        }
+
+        async function athletePortalSignOut() {
+            try {
+                const client = getTornadoesPortalClient();
+                const result = await client.auth.signOut();
+                if (result.error) throw result.error;
+                document.getElementById('athlete-portal-profiles').innerHTML = '';
+                portalShowLogin();
+                portalStatus('You have signed out.', false);
+            } catch (error) {
+                portalStatus(error.message || 'Unable to sign out.', true);
+            }
+        }
+
+        async function athletePortalResetPassword() {
+            const email = document.getElementById('athlete-portal-email').value.trim();
+            if (!email) {
+                portalStatus('Enter your email address first, then select Forgot password.', true);
+                return;
+            }
+            try {
+                const client = getTornadoesPortalClient();
+                const result = await client.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+                if (result.error) throw result.error;
+                portalStatus('If this email is registered, password reset instructions will be sent.', false);
+            } catch (error) {
+                portalStatus(error.message || 'Password reset could not be requested.', true);
+            }
+        }
+
+        async function loadAthletePortal(session) {
+            const client = getTornadoesPortalClient();
+            document.getElementById('athlete-portal-login').classList.add('hidden');
+            document.getElementById('athlete-portal-dashboard').classList.remove('hidden');
+            document.getElementById('athlete-portal-user').textContent = session.user.email || 'Authenticated account';
+            const container = document.getElementById('athlete-portal-profiles');
+            container.innerHTML = '<div class="bg-white rounded-xl border border-slate-200 p-6 text-sm text-slate-500">Loading your athlete profile…</div>';
+
+            const profileResult = await client.from('artistic_athlete_profiles')
+                .select('id,full_name,category')
+                .eq('is_active', true)
+                .order('full_name', { ascending: true });
+            if (profileResult.error) throw profileResult.error;
+
+            if (!profileResult.data || profileResult.data.length === 0) {
+                container.innerHTML = '<div class="bg-white rounded-xl border border-amber-200 p-6 text-sm text-slate-700"><strong>No athlete profile is linked to this account yet.</strong><p class="mt-2 text-slate-500">Please contact Tornadoes Administration to activate your family access.</p></div>';
+                return;
+            }
+
+            const gymOrder = ['Push-ups','V-ups','Tuck-ups','Frog Jumps','Back Arch','Shoulder Twist','Bridge','Right Split','Left Split','Middle Split','Forward Fold','Ballet Leg Extension'];
+            const poolOrder = ['Swimming Speed','Head-First Sculling','Eggbeater','Barracuda','Body Boost','Ariana','Vertical Hold','Upside-Down Split'];
+            let html = '';
+
+            for (const athlete of profileResult.data) {
+                const assessmentResult = await client.from('artistic_assessments')
+                    .select('id,assessment_name,assessment_date,assessment_area,result_score,max_score,score_percent,percentile,record_status')
+                    .eq('athlete_id', athlete.id)
+                    .order('assessment_date', { ascending: false });
+                if (assessmentResult.error) throw assessmentResult.error;
+
+                html += '<section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">';
+                html += '<div class="bg-slate-900 text-white p-5"><div class="text-xs uppercase tracking-widest text-teal-300 font-bold">Tornadoes athlete</div><h3 class="text-2xl font-extrabold mt-1">' + portalEscape(athlete.full_name) + '</h3><p class="text-sm text-slate-300 mt-1">' + portalEscape(athlete.category) + '</p></div>';
+                if (!assessmentResult.data || assessmentResult.data.length === 0) {
+                    html += '<div class="p-5 text-sm text-slate-500">No published assessments are available yet.</div>';
+                } else {
+                    for (const assessment of assessmentResult.data) {
+                        const itemsResult = await client.from('artistic_assessment_items')
+                            .select('test_name,score,max_score,result_status')
+                            .eq('assessment_id', assessment.id);
+                        if (itemsResult.error) throw itemsResult.error;
+                        const preferred = assessment.assessment_area === 'Gym' ? gymOrder : poolOrder;
+                        const items = (itemsResult.data || []).slice().sort(function(a,b) {
+                            return preferred.indexOf(a.test_name) - preferred.indexOf(b.test_name);
+                        });
+                        const pct = assessment.score_percent == null ? 'Partial assessment' : Number(assessment.score_percent).toFixed(1) + '%';
+                        html += '<div class="p-5 border-t border-slate-200">';
+                        html += '<div class="flex flex-wrap items-start justify-between gap-3"><div><div class="text-xs uppercase tracking-wider font-bold text-teal-700">' + portalEscape(assessment.assessment_area) + '</div><h4 class="font-extrabold text-slate-900 mt-1">' + portalEscape(assessment.assessment_name) + '</h4><p class="text-xs text-slate-500 mt-1">' + portalEscape(assessment.assessment_date) + (assessment.record_status === 'partial' ? ' · Partial record' : '') + '</p></div>';
+                        html += '<div class="text-right"><div class="text-2xl font-black text-teal-700">' + portalEscape(pct) + '</div>';
+                        if (assessment.result_score != null && assessment.max_score != null) html += '<div class="text-xs text-slate-500">' + portalEscape(assessment.result_score) + ' / ' + portalEscape(assessment.max_score) + '</div>';
+                        if (assessment.percentile != null) html += '<div class="text-[11px] text-slate-500 mt-1">ASAJ category percentile: ' + portalEscape(Number(assessment.percentile).toFixed(1)) + '%</div>';
+                        html += '</div></div>';
+                        html += '<div class="mt-4 grid gap-2 sm:grid-cols-2">';
+                        for (const item of items) {
+                            const scoreText = item.result_status === 'unrecorded' || item.score == null ? 'Not recorded' : (Number(item.score) + ' / ' + Number(item.max_score));
+                            html += '<div class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2"><span class="text-xs font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="text-xs font-extrabold text-slate-900 whitespace-nowrap">' + portalEscape(scoreText) + '</span></div>';
+                        }
+                        html += '</div></div>';
+                    }
+                }
+                html += '</section>';
+            }
+            container.innerHTML = html;
+            portalStatus('Your athlete records have loaded. Only records linked to this signed-in account are available.', false);
+        }
+
         function switchTab(tabId) {
             document.querySelectorAll('.tab-section').forEach(el => el.classList.add('hidden'));
             document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -3161,6 +3387,9 @@ body { overflow-x: hidden; }
             if (activeBtn) {
                 activeBtn.classList.remove('bg-slate-200', 'text-slate-700');
                 activeBtn.classList.add('active', 'bg-teal-600', 'text-white');
+            }
+            if (tabId === 'athlete-profile') {
+                initAthletePortal();
             }
         }
 
