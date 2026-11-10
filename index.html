@@ -3333,7 +3333,8 @@ body { overflow-x: hidden; }
                 .eq('is_active', true)
                 .maybeSingle();
             if (staffResult.error) throw staffResult.error;
-            const isAdmin = !!staffResult.data && staffResult.data.role === 'admin';
+            const isStaff = !!staffResult.data;
+            const isAdmin = isStaff && staffResult.data.role === 'admin';
             const signedInNote = document.querySelector('#athlete-portal-dashboard .text-xs.text-slate-500.mt-1');
             if (signedInNote) signedInNote.textContent = isAdmin
                 ? 'Administrator access: all active athlete profiles and assessment records are available.'
@@ -3416,7 +3417,7 @@ body { overflow-x: hidden; }
                 html += '</section>';
             }
             container.innerHTML = html;
-            if (isAdmin) {
+            if (isStaff) {
                 document.getElementById('competition-admin-panel').classList.remove('hidden');
                 document.getElementById('competition-athlete-picker').innerHTML = profileResult.data.map(function(a) {
                     return '<label class="flex items-center gap-2 rounded-lg bg-slate-50 p-2"><input type="checkbox" name="competition-athlete" value="' + portalEscape(a.id) + '" class="rounded border-slate-300"><span>' + portalEscape(a.full_name) + ' <span class="text-slate-400">(' + portalEscape(a.category) + ')</span></span></label>';
