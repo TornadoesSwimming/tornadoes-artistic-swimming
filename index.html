@@ -3072,6 +3072,26 @@ body { overflow-x: hidden; }
 
         let portalActiveAthletes = [];
 
+        function showAthleteProfile(athleteId) {
+            const roster = document.getElementById('athlete-profile-roster');
+            const details = document.getElementById('athlete-profile-details');
+            if (!roster || !details) return;
+            roster.classList.add('hidden');
+            details.classList.remove('hidden');
+            details.querySelectorAll('[id^="athlete-profile-detail-"]').forEach(function(profile) {
+                profile.classList.add('hidden');
+            });
+            const selected = document.getElementById('athlete-profile-detail-' + athleteId);
+            if (selected) selected.classList.remove('hidden');
+        }
+
+        function backToAthleteRoster() {
+            const roster = document.getElementById('athlete-profile-roster');
+            const details = document.getElementById('athlete-profile-details');
+            if (details) details.classList.add('hidden');
+            if (roster) roster.classList.remove('hidden');
+        }
+
         async function loadAthletePortal(session) {
             const client = getTornadoesPortalClient();
             document.getElementById('athlete-portal-login').classList.add('hidden');
@@ -3109,15 +3129,18 @@ body { overflow-x: hidden; }
             const gymOrder = ['Push-ups','V-ups','Tuck-ups','Frog Jumps','Back Arch','Shoulder Twist','Bridge','Right Split','Left Split','Middle Split','Forward Fold','Ballet Leg Extension'];
             const poolOrder = ['Swimming Speed','Head-First Sculling','Eggbeater','Barracuda','Body Boost','Ariana','Vertical Hold','Upside-Down Split'];
             let html = '';
+            let rosterHtml = '<div id="athlete-profile-roster" class="space-y-4"><div><h3 class="text-lg font-extrabold text-slate-900">Athlete Roster</h3><p class="text-sm text-slate-500 mt-1">Select an athlete to open their individual development profile.</p></div><div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">';
 
             for (const athlete of profileResult.data) {
+                rosterHtml += '<button type="button" onclick="showAthleteProfile(\'' + portalEscape(athlete.id) + '\')" class="text-left bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:border-teal-400 hover:shadow-md transition"><div class="text-xs font-bold uppercase tracking-wider text-teal-700">Athlete Profile</div><div class="font-extrabold text-slate-900 mt-1">' + portalEscape(athlete.full_name) + '</div><div class="text-sm text-slate-500 mt-1">' + portalEscape(athlete.category) + '</div><div class="text-xs font-bold text-teal-700 mt-3">View Athlete Profile →</div></button>';
                 const assessmentResult = await client.from('artistic_assessments')
                     .select('id,assessment_name,assessment_date,assessment_area,result_score,max_score,score_percent,percentile,record_status')
                     .eq('athlete_id', athlete.id)
                     .order('assessment_date', { ascending: false });
                 if (assessmentResult.error) throw assessmentResult.error;
 
-                html += '<section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">';
+                html += '<section id="athlete-profile-detail-' + portalEscape(athlete.id) + '" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">';
+                html += '<div class="p-3 bg-slate-50 border-b border-slate-200"><button type="button" onclick="backToAthleteRoster()" class="text-sm font-bold text-teal-700 hover:text-teal-900">← Back to Athlete Roster</button></div>';
                 html += '<div class="bg-slate-900 text-white p-5"><div class="text-xs uppercase tracking-widest text-teal-300 font-bold">Tornadoes athlete</div><h3 class="text-2xl font-extrabold mt-1">' + portalEscape(athlete.full_name) + '</h3><p class="text-sm text-slate-300 mt-1">' + portalEscape(athlete.category) + '</p></div>';
                 if (!assessmentResult.data || assessmentResult.data.length === 0) {
                     html += '<div class="p-5 text-sm text-slate-500">No published assessments are available yet.</div>';
@@ -3171,7 +3194,8 @@ body { overflow-x: hidden; }
                 }
                 html += '</section>';
             }
-            container.innerHTML = html;
+            rosterHtml += '</div></div>';
+            container.innerHTML = rosterHtml + '<div id="athlete-profile-details" class="hidden space-y-5">' + html + '</div>';
             if (isStaff) {
                 portalActiveAthletes = profileResult.data;
                 document.getElementById('training-attendance-panel').classList.remove('hidden');
