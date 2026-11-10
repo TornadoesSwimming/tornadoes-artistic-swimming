@@ -2945,6 +2945,24 @@ body { overflow-x: hidden; }
       <button type="button" onclick="athletePortalSignOut()" class="rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"><i class="fas fa-right-from-bracket mr-2"></i>Sign Out</button>
     </div>
     <div id="athlete-portal-profiles" class="space-y-5"></div>
+    <section id="competition-admin-panel" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="p-5 bg-slate-900 text-white"><div class="text-xs uppercase tracking-widest text-teal-300 font-bold">Staff workspace</div><h3 class="text-xl font-extrabold mt-1">Official Competition Results</h3><p class="text-sm text-slate-300 mt-1">Enter one official result and link every athlete who participated. Team scores are stored once.</p></div>
+      <form id="competition-entry-form" onsubmit="event.preventDefault(); saveCompetitionResult();" class="p-5 space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="text-xs font-bold text-slate-600">Competition name<input id="competition-name" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Competition name"></label>
+          <label class="text-xs font-bold text-slate-600">Competition date<input id="competition-date" type="date" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"></label>
+          <label class="text-xs font-bold text-slate-600">Modality<select id="competition-modality" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"><option>Figures</option><option>Solo</option><option>Duet</option><option>Team</option><option>Technical Routine</option><option>Free Routine</option></select></label>
+          <label class="text-xs font-bold text-slate-600">Category<input id="competition-category" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="e.g. Youth 13–15"></label>
+          <label class="text-xs font-bold text-slate-600">Event / routine name<input id="competition-event-name" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Optional"></label>
+          <label class="text-xs font-bold text-slate-600">Official score<input id="competition-score" type="number" step="0.001" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="Official score"></label>
+          <label class="text-xs font-bold text-slate-600">Placement<input id="competition-placement" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="e.g. 1st"></label>
+          <label class="text-xs font-bold text-slate-600">Medal<select id="competition-medal" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"><option value="">No medal / not applicable</option><option>Gold</option><option>Silver</option><option>Bronze</option></select></label>
+        </div>
+        <div><div class="text-xs font-bold text-slate-600 mb-2">Athletes linked to this result</div><div id="competition-athlete-picker" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto rounded-lg border border-slate-200 p-3 text-sm"><span class="text-slate-400">Athlete list loads after sign-in.</span></div><p class="text-[11px] text-slate-500 mt-2">For Team, select every team member. The score will be saved once and shared across their profiles.</p></div>
+        <label class="flex items-center gap-2 text-sm text-slate-700"><input id="competition-publish" type="checkbox" class="rounded border-slate-300"> Publish this official result to linked parents</label>
+        <div class="flex flex-wrap items-center gap-3"><button type="submit" class="rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold px-5 py-3 text-sm">Save official result</button><span id="competition-save-status" class="text-xs text-slate-500" role="status"></span></div>
+      </form>
+    </section>
   </div>
 
   <div id="athlete-portal-status" class="hidden rounded-lg p-4 text-sm" role="status" aria-live="polite"></div>
@@ -3372,10 +3390,78 @@ body { overflow-x: hidden; }
                         html += '</div></div>';
                     }
                 }
+                const participantResult = await client.from('artistic_competition_participants')
+                    .select('event_id')
+                    .eq('athlete_id', athlete.id);
+                if (participantResult.error) throw participantResult.error;
+                const eventIds = (participantResult.data || []).map(function(row) { return row.event_id; });
+                if (eventIds.length) {
+                    const eventResult = await client.from('artistic_competition_events')
+                        .select('competition_name,competition_date,modality,category,event_name,official_score,placement,medal')
+                        .in('id', eventIds)
+                        .order('competition_date', { ascending: false });
+                    if (eventResult.error) throw eventResult.error;
+                    html += '<div class="p-5 border-t border-slate-200"><h4 class="font-extrabold text-slate-900 mb-3"><i class="fas fa-trophy text-amber-500 mr-2"></i>Official Competition Results</h4>';
+                    for (const event of (eventResult.data || [])) {
+                        html += '<div class="rounded-xl border border-slate-200 p-3 mb-2"><div class="flex flex-wrap justify-between gap-2"><strong class="text-sm text-slate-900">' + portalEscape(event.competition_name) + '</strong><span class="text-xs text-slate-500">' + portalEscape(event.competition_date || '') + '</span></div>';
+                        html += '<div class="text-xs text-slate-600 mt-1">' + portalEscape(event.modality) + (event.category ? ' · ' + portalEscape(event.category) : '') + (event.event_name ? ' · ' + portalEscape(event.event_name) : '') + '</div>';
+                        html += '<div class="flex flex-wrap gap-3 text-xs font-bold text-teal-800 mt-2">';
+                        if (event.official_score != null) html += '<span>Score: ' + portalEscape(event.official_score) + '</span>';
+                        if (event.placement) html += '<span>Placement: ' + portalEscape(event.placement) + '</span>';
+                        if (event.medal) html += '<span>Medal: ' + portalEscape(event.medal) + '</span>';
+                        html += '</div></div>';
+                    }
+                    html += '</div>';
+                }
                 html += '</section>';
             }
             container.innerHTML = html;
+            if (isAdmin) {
+                document.getElementById('competition-admin-panel').classList.remove('hidden');
+                document.getElementById('competition-athlete-picker').innerHTML = profileResult.data.map(function(a) {
+                    return '<label class="flex items-center gap-2 rounded-lg bg-slate-50 p-2"><input type="checkbox" name="competition-athlete" value="' + portalEscape(a.id) + '" class="rounded border-slate-300"><span>' + portalEscape(a.full_name) + ' <span class="text-slate-400">(' + portalEscape(a.category) + ')</span></span></label>';
+                }).join('');
+            } else {
+                document.getElementById('competition-admin-panel').classList.add('hidden');
+            }
             portalStatus(isAdmin ? 'Admin dashboard loaded. All active athlete records are available.' : 'Your linked athlete records have loaded.', false);
+        }
+
+        async function saveCompetitionResult() {
+            const client = getTornadoesPortalClient();
+            const selectedAthletes = Array.from(document.querySelectorAll('input[name="competition-athlete"]:checked')).map(function(input) { return input.value; });
+            const status = document.getElementById('competition-save-status');
+            if (!selectedAthletes.length) { status.textContent = 'Select at least one athlete.'; return; }
+            const payload = {
+                competition_name: document.getElementById('competition-name').value.trim(),
+                competition_date: document.getElementById('competition-date').value || null,
+                modality: document.getElementById('competition-modality').value,
+                category: document.getElementById('competition-category').value.trim() || null,
+                event_name: document.getElementById('competition-event-name').value.trim() || null,
+                official_score: document.getElementById('competition-score').value === '' ? null : Number(document.getElementById('competition-score').value),
+                placement: document.getElementById('competition-placement').value.trim() || null,
+                medal: document.getElementById('competition-medal').value || null,
+                is_published: document.getElementById('competition-publish').checked,
+                created_by: (await client.auth.getUser()).data.user.id
+            };
+            status.textContent = 'Saving official result…';
+            try {
+                const inserted = await client.from('artistic_competition_events').insert(payload).select('id').single();
+                if (inserted.error) throw inserted.error;
+                const links = selectedAthletes.map(function(athleteId) { return { event_id: inserted.data.id, athlete_id: athleteId }; });
+                const linked = await client.from('artistic_competition_participants').insert(links);
+                if (linked.error) {
+                    await client.from('artistic_competition_events').delete().eq('id', inserted.data.id);
+                    throw linked.error;
+                }
+                document.getElementById('competition-entry-form').reset();
+                document.querySelectorAll('input[name="competition-athlete"]').forEach(function(input) { input.checked = false; });
+                status.textContent = 'Official result saved and linked to ' + selectedAthletes.length + ' athlete(s).';
+                const session = (await client.auth.getSession()).data.session;
+                if (session) await loadAthletePortal(session);
+            } catch (error) {
+                status.textContent = error.message || 'Could not save the competition result.';
+            }
         }
 
         function switchTab(tabId) {
