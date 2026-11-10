@@ -2945,6 +2945,31 @@ body { overflow-x: hidden; }
       <button type="button" onclick="athletePortalSignOut()" class="rounded-lg border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"><i class="fas fa-right-from-bracket mr-2"></i>Sign Out</button>
     </div>
     <div id="athlete-portal-profiles" class="space-y-5"></div>
+    <section id="training-attendance-panel" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="p-5 bg-gradient-to-r from-teal-900 to-slate-900 text-white">
+        <div class="text-xs uppercase tracking-widest text-teal-300 font-bold">Staff workspace</div>
+        <h3 class="text-xl font-extrabold mt-1">Training Attendance &amp; Hours</h3>
+        <p class="text-sm text-slate-300 mt-1">Create a training session, then record Present or Absent and each athlete's arrival and departure time.</p>
+      </div>
+      <form id="training-attendance-form" onsubmit="event.preventDefault(); saveTrainingAttendance();" class="p-5 space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <label class="text-xs font-bold text-slate-600">Training date<input id="training-date" type="date" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"></label>
+          <label class="text-xs font-bold text-slate-600">Session / training name<input id="training-name" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="e.g. Tuesday Pool Training"></label>
+          <label class="text-xs font-bold text-slate-600">Category<select id="training-category" required onchange="renderTrainingAttendanceRoster()" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"><option value="">Select category</option><option>Super Novice</option><option>Novice</option><option>Intermediate</option><option>12 &amp; Under</option><option>Youth &amp; Up</option><option>Juniors</option></select></label>
+          <label class="text-xs font-bold text-slate-600">Scheduled start<input id="training-start" type="time" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"></label>
+          <label class="text-xs font-bold text-slate-600">Scheduled end<input id="training-end" type="time" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"></label>
+          <label class="text-xs font-bold text-slate-600">Location<input id="training-location" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="UWI Pool / National Stadium"></label>
+        </div>
+        <div class="rounded-xl border border-slate-200 overflow-hidden">
+          <div class="bg-slate-50 border-b border-slate-200 p-3 flex flex-wrap justify-between gap-2">
+            <div><h4 class="font-bold text-slate-800 text-sm">Athlete attendance</h4><p class="text-xs text-slate-500">Choose Present or Absent and enter arrival/departure times for those present.</p></div>
+            <span id="training-roster-count" class="text-xs font-bold text-teal-700"></span>
+          </div>
+          <div id="training-attendance-roster" class="divide-y divide-slate-100 p-3 text-sm text-slate-500">Select a category to load its athletes.</div>
+        </div>
+        <div class="flex flex-wrap items-center gap-3"><button type="submit" class="rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold px-5 py-3 text-sm">Save attendance record</button><span id="training-save-status" class="text-xs text-slate-500" role="status"></span></div>
+      </form>
+    </section>
     <section id="competition-admin-panel" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div class="p-5 bg-slate-900 text-white"><div class="text-xs uppercase tracking-widest text-teal-300 font-bold">Staff workspace</div><h3 class="text-xl font-extrabold mt-1">Official Competition Results</h3><p class="text-sm text-slate-300 mt-1">Enter one official result and link every athlete who participated. Team scores are stored once.</p></div>
       <form id="competition-entry-form" onsubmit="event.preventDefault(); saveCompetitionResult();" class="p-5 space-y-4">
@@ -3319,6 +3344,8 @@ body { overflow-x: hidden; }
             }
         }
 
+        let portalActiveAthletes = [];
+
         async function loadAthletePortal(session) {
             const client = getTornadoesPortalClient();
             document.getElementById('athlete-portal-login').classList.add('hidden');
@@ -3418,14 +3445,92 @@ body { overflow-x: hidden; }
             }
             container.innerHTML = html;
             if (isStaff) {
+                portalActiveAthletes = profileResult.data;
+                document.getElementById('training-attendance-panel').classList.remove('hidden');
                 document.getElementById('competition-admin-panel').classList.remove('hidden');
                 document.getElementById('competition-athlete-picker').innerHTML = profileResult.data.map(function(a) {
                     return '<label class="flex items-center gap-2 rounded-lg bg-slate-50 p-2"><input type="checkbox" name="competition-athlete" value="' + portalEscape(a.id) + '" class="rounded border-slate-300"><span>' + portalEscape(a.full_name) + ' <span class="text-slate-400">(' + portalEscape(a.category) + ')</span></span></label>';
                 }).join('');
             } else {
+                portalActiveAthletes = profileResult.data;
+                document.getElementById('training-attendance-panel').classList.add('hidden');
                 document.getElementById('competition-admin-panel').classList.add('hidden');
             }
             portalStatus(isAdmin ? 'Admin dashboard loaded. All active athlete records are available.' : 'Your linked athlete records have loaded.', false);
+        }
+
+        function renderTrainingAttendanceRoster() {
+            const category = document.getElementById('training-category').value;
+            const roster = document.getElementById('training-attendance-roster');
+            const athletes = portalActiveAthletes.filter(function(a) { return a.category === category; });
+            document.getElementById('training-roster-count').textContent = athletes.length ? athletes.length + ' athletes' : '';
+            if (!category) { roster.innerHTML = 'Select a category to load its athletes.'; return; }
+            if (!athletes.length) { roster.innerHTML = '<div class="p-3 text-amber-700">No active athletes found in this category.</div>'; return; }
+            roster.innerHTML = athletes.map(function(a) {
+                return '<div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1.3fr)_130px_1fr_1fr] gap-2 items-center py-3" data-training-athlete="' + portalEscape(a.id) + '">' +
+                    '<div class="font-semibold text-slate-800">' + portalEscape(a.full_name) + '</div>' +
+                    '<select class="training-status rounded-lg border border-slate-300 p-2 text-xs font-semibold" aria-label="Attendance status for ' + portalEscape(a.full_name) + '" onchange="toggleTrainingTimes(this)"><option value="present">Present</option><option value="absent">Absent</option></select>' +
+                    '<label class="text-[11px] font-semibold text-slate-500">Arrival<input type="time" class="training-arrival mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm" aria-label="Arrival time for ' + portalEscape(a.full_name) + '"></label>' +
+                    '<label class="text-[11px] font-semibold text-slate-500">Departure<input type="time" class="training-departure mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm" aria-label="Departure time for ' + portalEscape(a.full_name) + '"></label>' +
+                    '</div>';
+            }).join('');
+        }
+
+        function toggleTrainingTimes(select) {
+            const row = select.closest('[data-training-athlete]');
+            const absent = select.value === 'absent';
+            row.querySelectorAll('.training-arrival,.training-departure').forEach(function(input) {
+                input.disabled = absent;
+                if (absent) input.value = '';
+            });
+        }
+
+        async function saveTrainingAttendance() {
+            const client = getTornadoesPortalClient();
+            const status = document.getElementById('training-save-status');
+            const category = document.getElementById('training-category').value;
+            const rows = Array.from(document.querySelectorAll('[data-training-athlete]'));
+            if (!rows.length) { status.textContent = 'Select a category with athletes first.'; return; }
+            const start = document.getElementById('training-start').value;
+            const end = document.getElementById('training-end').value;
+            if (end <= start) { status.textContent = 'Scheduled end must be later than scheduled start.'; return; }
+            const records = rows.map(function(row) {
+                const attendance = row.querySelector('.training-status').value;
+                const arrival = row.querySelector('.training-arrival').value || null;
+                const departure = row.querySelector('.training-departure').value || null;
+                if (attendance === 'present' && (!arrival || !departure)) throw new Error('Enter both arrival and departure times for every athlete marked Present.');
+                if (attendance === 'present' && (departure < arrival)) throw new Error('Departure time cannot be earlier than arrival time.');
+                return { athlete_id: row.getAttribute('data-training-athlete'), attendance_status: attendance, arrival_time: attendance === 'present' ? arrival : null, departure_time: attendance === 'present' ? departure : null };
+            });
+            status.textContent = 'Saving attendance…';
+            try {
+                const user = (await client.auth.getUser()).data.user;
+                const sessionPayload = {
+                    session_date: document.getElementById('training-date').value,
+                    session_name: document.getElementById('training-name').value.trim(),
+                    category: category,
+                    scheduled_start: start,
+                    scheduled_end: end,
+                    location: document.getElementById('training-location').value.trim() || null,
+                    created_by: user.id
+                };
+                const created = await client.from('artistic_training_sessions').insert(sessionPayload).select('id').single();
+                if (created.error) throw created.error;
+                const attendancePayload = records.map(function(record) {
+                    return { ...record, session_id: created.data.id, recorded_by: user.id };
+                });
+                const saved = await client.from('artistic_training_attendance').insert(attendancePayload);
+                if (saved.error) {
+                    await client.from('artistic_training_sessions').delete().eq('id', created.data.id);
+                    throw saved.error;
+                }
+                document.getElementById('training-attendance-form').reset();
+                document.getElementById('training-attendance-roster').innerHTML = 'Select a category to load its athletes.';
+                document.getElementById('training-roster-count').textContent = '';
+                status.textContent = 'Attendance saved for ' + records.length + ' athletes.';
+            } catch (error) {
+                status.textContent = error.message || 'Could not save attendance.';
+            }
         }
 
         async function saveCompetitionResult() {
