@@ -150,6 +150,14 @@ body { overflow-x: hidden; }
 </style>
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=4">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.102.0/dist/umd/supabase.js" defer></script>
+
+<style id="athlete-profile-redesign">
+#athlete-portal-profiles { display:grid; gap:1.5rem; }
+#athlete-portal-profiles .athlete-profile-card { border-color:#dbe5ef; box-shadow:0 18px 45px rgba(15,35,65,.10); }
+#athlete-portal-profiles .athlete-profile-card h3 { line-height:1.08; }
+#athlete-portal-profiles .athlete-profile-card .text-2xl.font-black { letter-spacing:-.04em; }
+@media (max-width:640px) { #athlete-portal-profiles .athlete-profile-card { border-radius:1.25rem; } }
+</style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen">
 <header class="bg-gradient-to-r from-slate-900 via-teal-900 to-slate-900 text-white shadow-md">
@@ -3117,8 +3125,13 @@ body { overflow-x: hidden; }
                     .order('assessment_date', { ascending: false });
                 if (assessmentResult.error) throw assessmentResult.error;
 
-                html += '<section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">';
-                html += '<div class="bg-slate-900 text-white p-5"><div class="text-xs uppercase tracking-widest text-teal-300 font-bold">Tornadoes athlete</div><h3 class="text-2xl font-extrabold mt-1">' + portalEscape(athlete.full_name) + '</h3><p class="text-sm text-slate-300 mt-1">' + portalEscape(athlete.category) + '</p></div>';
+                html += '<section class="athlete-profile-card bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">';
+                html += '<div class="relative overflow-hidden bg-gradient-to-r from-slate-950 via-cyan-950 to-teal-800 text-white px-5 py-7 sm:px-8">';
+                html += '<div class="absolute -right-10 -top-16 w-64 h-64 rounded-full border-[28px] border-white/5"></div>';
+                html += '<div class="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">';
+                html += '<div><div class="text-[10px] sm:text-xs uppercase tracking-[.24em] text-teal-200 font-extrabold">Tornadoes Artistic Swimming · Athlete Profile</div><h3 class="text-3xl sm:text-4xl font-black mt-2 tracking-tight">' + portalEscape(athlete.full_name) + '</h3><p class="inline-flex mt-3 rounded-full bg-teal-300/20 border border-teal-200/40 px-4 py-1.5 text-sm font-bold text-teal-50">' + portalEscape(athlete.category) + '</p></div>';
+                html += '<div class="rounded-2xl border border-white/15 bg-white/10 backdrop-blur px-4 py-3 sm:min-w-44"><div class="text-[10px] uppercase tracking-widest text-teal-100 font-bold">Development record</div><div class="text-lg font-extrabold mt-1">Gym & Pool</div><div class="text-xs text-slate-200 mt-1">Assessment history</div></div>';
+                html += '</div></div>';
                 if (!assessmentResult.data || assessmentResult.data.length === 0) {
                     html += '<div class="p-5 text-sm text-slate-500">No published assessments are available yet.</div>';
                 } else {
@@ -3132,16 +3145,16 @@ body { overflow-x: hidden; }
                             return preferred.indexOf(a.test_name) - preferred.indexOf(b.test_name);
                         });
                         const pct = assessment.score_percent == null ? 'Partial assessment' : Number(assessment.score_percent).toFixed(1) + '%';
-                        html += '<div class="p-5 border-t border-slate-200">';
-                        html += '<div class="flex flex-wrap items-start justify-between gap-3"><div><div class="text-xs uppercase tracking-wider font-bold text-teal-700">' + portalEscape(assessment.assessment_area) + '</div><h4 class="font-extrabold text-slate-900 mt-1">' + portalEscape(assessment.assessment_name) + '</h4><p class="text-xs text-slate-500 mt-1">' + portalEscape(assessment.assessment_date) + (assessment.record_status === 'partial' ? ' · Partial record' : '') + '</p></div>';
+                        html += '<div class="p-4 sm:p-6 border-t border-slate-100 bg-gradient-to-b from-white to-slate-50/70">';
+                        html += '<div class="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div class="min-w-0"><div class="inline-flex rounded-full bg-teal-50 px-3 py-1 text-[10px] uppercase tracking-wider font-extrabold text-teal-800">' + portalEscape(assessment.assessment_area) + ' Assessment</div><h4 class="font-extrabold text-slate-900 mt-2">' + portalEscape(assessment.assessment_name) + '</h4><p class="text-xs text-slate-500 mt-1">' + portalEscape(assessment.assessment_date) + (assessment.record_status === 'partial' ? ' · Partial record' : '') + '</p></div>';
                         html += '<div class="text-right"><div class="text-2xl font-black text-teal-700">' + portalEscape(pct) + '</div>';
                         if (assessment.result_score != null && assessment.max_score != null) html += '<div class="text-xs text-slate-500">' + portalEscape(assessment.result_score) + ' / ' + portalEscape(assessment.max_score) + '</div>';
                         if (assessment.percentile != null) html += '<div class="text-[11px] text-slate-500 mt-1">ASAJ category percentile: ' + portalEscape(Number(assessment.percentile).toFixed(1)) + '%</div>';
                         html += '</div></div>';
-                        html += '<div class="mt-4 grid gap-2 sm:grid-cols-2">';
+                        html += '<div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">';
                         for (const item of items) {
                             const scoreText = item.result_status === 'unrecorded' || item.score == null ? 'Not recorded' : (Number(item.score) + ' / ' + Number(item.max_score));
-                            html += '<div class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2"><span class="text-xs font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="text-xs font-extrabold text-slate-900 whitespace-nowrap">' + portalEscape(scoreText) + '</span></div>';
+                            html += '<div class="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-200/80 px-3 py-3 shadow-sm"><span class="text-xs font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="text-xs font-extrabold text-slate-900 whitespace-nowrap rounded-lg bg-slate-100 px-2.5 py-1">' + portalEscape(scoreText) + '</span></div>';
                         }
                         html += '</div></div>';
                     }
@@ -3157,7 +3170,7 @@ body { overflow-x: hidden; }
                         .in('id', eventIds)
                         .order('competition_date', { ascending: false });
                     if (eventResult.error) throw eventResult.error;
-                    html += '<div class="p-5 border-t border-slate-200"><h4 class="font-extrabold text-slate-900 mb-3"><i class="fas fa-trophy text-amber-500 mr-2"></i>Official Competition Results</h4>';
+                    html += '<div class="p-5 sm:p-6 border-t border-slate-100 bg-amber-50/30"><h4 class="font-extrabold text-slate-900 mb-3"><i class="fas fa-trophy text-amber-500 mr-2"></i>Official Competition Results</h4>';
                     for (const event of (eventResult.data || [])) {
                         html += '<div class="rounded-xl border border-slate-200 p-3 mb-2"><div class="flex flex-wrap justify-between gap-2"><strong class="text-sm text-slate-900">' + portalEscape(event.competition_name) + '</strong><span class="text-xs text-slate-500">' + portalEscape(event.competition_date || '') + '</span></div>';
                         html += '<div class="text-xs text-slate-600 mt-1">' + portalEscape(event.modality) + (event.category ? ' · ' + portalEscape(event.category) : '') + (event.event_name ? ' · ' + portalEscape(event.event_name) : '') + '</div>';
