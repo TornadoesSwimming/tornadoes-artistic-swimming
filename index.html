@@ -3182,6 +3182,65 @@ body { overflow-x: hidden; }
                     }
                     html += '</div>';
                 }
+                const attendanceResult = await client.from('artistic_training_attendance')
+                    .select('attendance_status,arrival_time,departure_time,session_id')
+                    .eq('athlete_id', athlete.id);
+                if (attendanceResult.error) throw attendanceResult.error;
+                const attendanceRows = attendanceResult.data || [];
+                html += '<div class="p-5 border-t border-slate-200"><h4 class="font-extrabold text-slate-900 mb-3"><i class="fas fa-calendar-check text-teal-600 mr-2"></i>Training Attendance &amp; Hours</h4>';
+                if (!attendanceRows.length) {
+                    html += '<p class="text-sm text-slate-500">No training attendance records available yet.</p>';
+                } else {
+                    const sessionIds = Array.from(new Set(attendanceRows.map(function(row) { return row.session_id; })));
+                    const sessionsResult = await client.from('artistic_training_sessions')
+                        .select('id,session_date,session_name,scheduled_start,scheduled_end,location')
+                        .in('id', sessionIds)
+                        .order('session_date', { ascending: false });
+                    if (sessionsResult.error) throw sessionsResult.error;
+                    const sessionsById = {};
+                    (sessionsResult.data || []).forEach(function(item) { sessionsById[item.id] = item; });
+                    const monthlyMinutes = {};
+                    const history = attendanceRows.map(function(row) {
+                        const training = sessionsById[row.session_id];
+                        if (!training) return null;
+                        let minutes = 0;
+                        if (row.attendance_status === 'present' && row.arrival_time && row.departure_time) {
+                            const toMinutes = function(value) {
+                                const parts = value.split(':');
+                                return Number(parts[0]) * 60 + Number(parts[1]);
+                            };
+                            minutes = toMinutes(row.departure_time) - toMinutes(row.arrival_time);
+                            if (minutes < 0) minutes += 1440;
+                            const monthKey = String(training.session_date || '').slice(0, 7);
+                            monthlyMinutes[monthKey] = (monthlyMinutes[monthKey] || 0) + minutes;
+                        }
+                        return { row: row, session: training, minutes: minutes };
+                    }).filter(Boolean).sort(function(a,b) {
+                        return String(b.session.session_date).localeCompare(String(a.session.session_date));
+                    });
+                    const totalMinutes = Object.values(monthlyMinutes).reduce(function(sum,value) { return sum + value; }, 0);
+                    html += '<div class="grid grid-cols-2 gap-2 mb-4"><div class="rounded-lg bg-slate-50 p-3"><div class="text-xs text-slate-500">Sessions recorded</div><div class="text-xl font-black text-slate-900">' + history.length + '</div></div><div class="rounded-lg bg-slate-50 p-3"><div class="text-xs text-slate-500">Total attended hours</div><div class="text-xl font-black text-teal-700">' + (totalMinutes / 60).toFixed(1) + ' h</div></div></div>';
+                    const months = Object.keys(monthlyMinutes).sort().reverse();
+                    if (months.length) {
+                        html += '<div class="mb-4"><div class="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Monthly hours</div><div class="flex flex-wrap gap-2">';
+                        months.forEach(function(month) {
+                            html += '<span class="rounded-lg bg-teal-50 text-teal-800 px-3 py-2 text-xs font-bold">' + portalEscape(month) + ': ' + (monthlyMinutes[month] / 60).toFixed(1) + ' h</span>';
+                        });
+                        html += '</div></div>';
+                    }
+                    html += '<div class="space-y-2">';
+                    history.forEach(function(entry) {
+                        const row = entry.row, training = entry.session;
+                        const present = row.attendance_status === 'present';
+                        const duration = present && entry.minutes ? (entry.minutes / 60).toFixed(1) + ' h' : '—';
+                        html += '<div class="rounded-xl border border-slate-200 p-3"><div class="flex flex-wrap justify-between gap-2"><strong class="text-sm text-slate-900">' + portalEscape(training.session_name || 'Training session') + '</strong><span class="text-xs font-bold ' + (present ? 'text-teal-700' : 'text-rose-700') + '">' + (present ? 'Present' : 'Absent') + '</span></div>';
+                        html += '<div class="text-xs text-slate-500 mt-1">' + portalEscape(training.session_date || '') + (training.location ? ' · ' + portalEscape(training.location) : '') + '</div>';
+                        if (present) html += '<div class="text-xs text-slate-600 mt-2">Arrival: ' + portalEscape(row.arrival_time || '—') + ' · Departure: ' + portalEscape(row.departure_time || '—') + ' · Duration: <strong>' + duration + '</strong></div>';
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                }
+                html += '</div>';
                 html += '</section>';
             }
             container.innerHTML = html;
