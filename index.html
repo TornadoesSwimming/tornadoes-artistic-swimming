@@ -3092,6 +3092,83 @@ body { overflow-x: hidden; }
             if (roster) roster.classList.remove('hidden');
         }
 
+
+        function renderAthletePersonalEditor(athlete, isStaff) {
+            const val = function(v) { return portalEscape(v || ''); };
+            const field = function(label, key, type) {
+                return '<label class="block text-xs font-bold text-slate-600">' + label +
+                    '<input data-personal-field="' + key + '" type="' + (type || 'text') + '" value="' + val(athlete[key]) +
+                    '" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal text-slate-800"></label>';
+            };
+            return '<section class="p-5 border-b border-slate-200 bg-slate-50/70">' +
+                '<div class="flex flex-wrap items-center justify-between gap-2 mb-3"><div><h4 class="font-extrabold text-slate-900"><i class="fas fa-id-card text-teal-600 mr-2"></i>Personal Information</h4><p class="text-xs text-slate-500 mt-1">' + (isStaff ? 'Coach / staff editing access' : 'Family editing access') + '</p></div><span class="text-[11px] font-bold rounded-full px-3 py-1 bg-teal-100 text-teal-800">Editable profile</span></div>' +
+                '<form onsubmit="event.preventDefault(); saveAthletePersonalDetails(\'' + val(athlete.id) + '\',' + (isStaff ? 'true' : 'false') + ',this)" class="space-y-3">' +
+                '<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">' +
+                field('Date of birth','date_of_birth','date') + field('School','school_name') + field('Athlete WhatsApp','athlete_whatsapp','tel') +
+                field('Mother / guardian name','mother_name') + field('Mother WhatsApp','mother_whatsapp','tel') + field('Mother email','mother_email','email') +
+                field('Father name','father_name') + field('Father WhatsApp','father_whatsapp','tel') + field('Father email','father_email','email') +
+                '</div><label class="block text-xs font-bold text-slate-600">Profile photo <input name="athlete-photo" type="file" accept="image/*" class="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm font-normal"></label>' +
+                '<div class="flex flex-wrap items-center gap-3"><button type="submit" class="rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold px-5 py-2.5 text-sm"><i class="fas fa-save mr-2"></i>Save personal details</button><span class="text-xs text-slate-500" data-profile-save-status role="status"></span></div>' +
+                '</form></section>';
+        }
+
+        async function saveAthletePersonalDetails(athleteId, isStaff, form) {
+            const client = getTornadoesPortalClient();
+            const status = form.querySelector('[data-profile-save-status]');
+            const value = function(key) { return form.querySelector('[data-personal-field="' + key + '"]').value.trim() || null; };
+            const payload = {
+                p_athlete_id: athleteId,
+                p_date_of_birth: value('date_of_birth'),
+                p_school_name: value('school_name'),
+                p_athlete_whatsapp: value('athlete_whatsapp'),
+                p_mother_name: value('mother_name'),
+                p_mother_whatsapp: value('mother_whatsapp'),
+                p_mother_email: value('mother_email'),
+                p_father_name: value('father_name'),
+                p_father_whatsapp: value('father_whatsapp'),
+                p_father_email: value('father_email')
+            };
+            const file = form.querySelector('input[name="athlete-photo"]').files[0];
+            try {
+                status.textContent = 'Saving…';
+                let avatarPath = null;
+                if (file) {
+                    if (!file.type.startsWith('image/')) throw new Error('Please choose an image file.');
+                    if (file.size > 5 * 1024 * 1024) throw new Error('Photo must be 5 MB or smaller.');
+                    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
+                    avatarPath = athleteId + '/profile-' + Date.now() + '.' + ext;
+                    const upload = await client.storage.from('athlete-photos').upload(avatarPath, file, { upsert: true, contentType: file.type });
+                    if (upload.error) throw upload.error;
+                }
+                if (isStaff) {
+                    const update = {
+                        date_of_birth: payload.p_date_of_birth,
+                        school_name: payload.p_school_name,
+                        athlete_whatsapp: payload.p_athlete_whatsapp,
+                        mother_name: payload.p_mother_name,
+                        mother_whatsapp: payload.p_mother_whatsapp,
+                        mother_email: payload.p_mother_email,
+                        father_name: payload.p_father_name,
+                        father_whatsapp: payload.p_father_whatsapp,
+                        father_email: payload.p_father_email,
+                        updated_at: new Date().toISOString()
+                    };
+                    if (avatarPath) update.avatar_url = avatarPath;
+                    const result = await client.from('artistic_athlete_profiles').update(update).eq('id', athleteId);
+                    if (result.error) throw result.error;
+                } else {
+                    payload.p_avatar_url = avatarPath;
+                    const result = await client.rpc('update_guardian_athlete_personal_details', payload);
+                    if (result.error) throw result.error;
+                }
+                status.textContent = 'Saved successfully. Refreshing profile…';
+                await loadAthletePortal((await client.auth.getSession()).data.session);
+            } catch (error) {
+                status.textContent = error.message || 'Unable to save profile.';
+                status.className = 'text-xs text-red-600';
+            }
+        }
+
         async function loadAthletePortal(session) {
             const client = getTornadoesPortalClient();
             document.getElementById('athlete-portal-login').classList.add('hidden');
@@ -3116,10 +3193,18 @@ body { overflow-x: hidden; }
                 : 'Only profiles assigned to this account are shown.';
 
             const profileResult = await client.from('artistic_athlete_profiles')
-                .select('id,full_name,category')
+                .select('id,full_name,category,date_of_birth,school_name,athlete_whatsapp,mother_name,mother_whatsapp,mother_email,father_name,father_whatsapp,father_email,avatar_url')
                 .eq('is_active', true)
                 .order('full_name', { ascending: true });
             if (profileResult.error) throw profileResult.error;
+
+            for (const athlete of (profileResult.data || [])) {
+                athlete.avatar_display_url = '';
+                if (athlete.avatar_url) {
+                    const photo = await client.storage.from('athlete-photos').createSignedUrl(athlete.avatar_url, 3600);
+                    if (!photo.error && photo.data) athlete.avatar_display_url = photo.data.signedUrl;
+                }
+            }
 
             if (!profileResult.data || profileResult.data.length === 0) {
                 container.innerHTML = '<div class="bg-white rounded-xl border border-amber-200 p-6 text-sm text-slate-700"><strong>No athlete profile is linked to this account yet.</strong><p class="mt-2 text-slate-500">Please contact Tornadoes Administration to activate your family access.</p></div>';
@@ -3141,7 +3226,11 @@ body { overflow-x: hidden; }
 
                 html += '<section id="athlete-profile-detail-' + portalEscape(athlete.id) + '" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">';
                 html += '<div class="p-3 bg-slate-50 border-b border-slate-200"><button type="button" onclick="backToAthleteRoster()" class="text-sm font-bold text-teal-700 hover:text-teal-900">← Back to Athlete Roster</button></div>';
-                html += '<div class="bg-slate-900 text-white p-5"><div class="text-xs uppercase tracking-widest text-teal-300 font-bold">Tornadoes athlete</div><h3 class="text-2xl font-extrabold mt-1">' + portalEscape(athlete.full_name) + '</h3><p class="text-sm text-slate-300 mt-1">' + portalEscape(athlete.category) + '</p></div>';
+                const avatar = athlete.avatar_display_url
+                    ? '<img src="' + portalEscape(athlete.avatar_display_url) + '" alt="Athlete photo" class="w-24 h-24 rounded-full object-cover border-4 border-teal-300 bg-white">'
+                    : '<div class="w-24 h-24 rounded-full border-4 border-teal-300 bg-slate-700 flex items-center justify-center text-3xl font-black text-teal-200">' + portalEscape((athlete.full_name || '?').split(' ').map(x => x[0]).slice(0,2).join('')) + '</div>';
+                html += '<div class="bg-gradient-to-r from-slate-950 via-teal-950 to-slate-900 text-white p-5"><div class="flex flex-wrap items-center gap-4">' + avatar + '<div><div class="text-xs uppercase tracking-widest text-teal-300 font-bold">Tornadoes athlete</div><h3 class="text-2xl font-extrabold mt-1">' + portalEscape(athlete.full_name) + '</h3><p class="text-sm text-slate-300 mt-1">' + portalEscape(athlete.category) + ' · Season 2026–2027</p></div></div></div>';
+                html += renderAthletePersonalEditor(athlete, isStaff);
                 if (!assessmentResult.data || assessmentResult.data.length === 0) {
                     html += '<div class="p-5 text-sm text-slate-500">No published assessments are available yet.</div>';
                 } else {
