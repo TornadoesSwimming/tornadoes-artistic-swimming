@@ -3252,7 +3252,9 @@ body { overflow-x: hidden; }
                     ? '<img src="' + portalEscape(athlete.avatar_display_url) + '" alt="Athlete photo" class="w-24 h-24 rounded-full object-cover border-4 border-teal-300 bg-white">'
                     : '<div class="w-24 h-24 rounded-full border-4 border-teal-300 bg-slate-700 flex items-center justify-center text-3xl font-black text-teal-200">' + portalEscape((athlete.full_name || '?').split(' ').map(x => x[0]).slice(0,2).join('')) + '</div>';
                 html += '<div class="bg-gradient-to-r from-slate-950 via-teal-950 to-slate-900 text-white p-5"><div class="flex flex-wrap items-center gap-4">' + avatar + '<div><div class="text-xs uppercase tracking-widest text-teal-300 font-bold">Tornadoes athlete</div><h3 class="text-2xl font-extrabold mt-1">' + portalEscape(athlete.full_name) + '</h3><p class="text-sm text-slate-300 mt-1">' + portalEscape(athlete.category) + ' · Season 2026–2027</p></div></div></div>';
-                html += renderAthletePersonalEditor(athlete, isStaff);
+                           html += '<div class="athlete-tab-panel" data-athlete-panel="overview">';
+                    html += renderAthletePersonalEditor(athlete, isStaff);
+                                    html += '</div>';
                                     html += '<div class="flex flex-wrap gap-2 p-3 border-b border-slate-200 bg-white">';
                 html += '<button type="button" class="athlete-tab-btn active bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-bold" data-tab="overview">Overview</button>';
                 html += '<button type="button" class="athlete-tab-btn bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold" data-tab="gym">Gym Results</button>';
