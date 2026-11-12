@@ -3245,7 +3245,9 @@ body { overflow-x: hidden; }
                 if (!isStaff) assessmentQuery = assessmentQuery.eq('is_published', true);
                 const assessmentResult = await assessmentQuery.order('assessment_date', { ascending: false });
                 if (assessmentResult.error) throw assessmentResult.error;
-
+                    
+                let gymHtml = '';
+                let poolHtml = '';
                 html += '<section id="athlete-profile-detail-' + portalEscape(athlete.id) + '" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">';
                 html += '<div class="p-3 bg-slate-50 border-b border-slate-200"><button type="button" onclick="backToAthleteRoster()" class="text-sm font-bold text-teal-700 hover:text-teal-900">← Back to Athlete Roster</button></div>';
                 const avatar = athlete.avatar_display_url
@@ -3279,6 +3281,7 @@ body { overflow-x: hidden; }
                             return preferred.indexOf(a.test_name) - preferred.indexOf(b.test_name);
                         });
                         const pct = assessment.score_percent == null ? 'Partial assessment' : Number(assessment.score_percent).toFixed(1) + '%';
+                            const assessmentCardStart = html.length;
                         html += '<div class="p-5 border-t border-slate-200">';
                         html += '<div class="flex flex-wrap items-start justify-between gap-3"><div><div class="text-xs uppercase tracking-wider font-bold text-teal-700">' + portalEscape(assessment.assessment_area) + '</div><h4 class="font-extrabold text-slate-900 mt-1">' + portalEscape(assessment.assessment_name) + '</h4><p class="text-xs text-slate-500 mt-1">' + portalEscape(assessment.assessment_date) + (assessment.record_status === 'partial' ? ' · Partial record' : '') + '</p></div>';
                         html += '<div class="text-right"><div class="text-2xl font-black text-teal-700">' + portalEscape(pct) + '</div>';
@@ -3293,8 +3296,13 @@ body { overflow-x: hidden; }
                         html += '</div></div>';
                     }
                 }
+                    const assessmentCardHtml = html.slice(assessmentCardStart);
+if (assessment.assessment_area === 'Gym') gymHtml += assessmentCardHtml;
+if (assessment.assessment_area === 'Pool') poolHtml += assessmentCardHtml;
                                     html += '</div>';
-                const participantResult = await client.from('artistic_competition_participants')
+html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-results-content">' + (gymHtml || '<p class="p-5 text-sm text-slate-500">No Gym results recorded yet.</p>') + '</div>');html = html.replace('<div class="pool-results-content"></div>', '<div class="pool-results-content">' + poolHtml + '</div>');
+               html = html.replace('<div class="pool-results-content"></div>', '<div class="pool-results-content">' + (poolHtml || '<p class="p-5 text-sm text-slate-500">No Pool results recorded yet.</p>') + '</div>');
+                    const participantResult = await client.from('artistic_competition_participants')
                     .select('event_id')
                     .eq('athlete_id', athlete.id);
                 if (participantResult.error) throw participantResult.error;
