@@ -3673,7 +3673,7 @@ html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-
             const authError = authParams.get('error_description') || authParams.get('error');
             if (authError) {
                 portalShowLogin();
-                portalStatus(decodeURIComponent(authError.replace(/\+/g, ' ')), true);
+                portalStatus(authError, true);
             }
         };
     </script>
