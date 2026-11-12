@@ -3272,6 +3272,7 @@ body { overflow-x: hidden; }
                     html += '<div class="p-5 text-sm text-slate-500">No published assessments are available yet.</div>';
                 } else {
                     for (const assessment of assessmentResult.data) {
+                        let assessmentCardHtml = '';
                         const itemsResult = await client.from('artistic_assessment_items')
                             .select('test_name,score,max_score,result_status')
                             .eq('assessment_id', assessment.id);
@@ -3281,26 +3282,27 @@ body { overflow-x: hidden; }
                             return preferred.indexOf(a.test_name) - preferred.indexOf(b.test_name);
                         });
                         const pct = assessment.score_percent == null ? 'Partial assessment' : Number(assessment.score_percent).toFixed(1) + '%';
-                            const assessmentCardStart = html.length;
-                        html += '<div class="p-5 border-t border-slate-200">';
-                        html += '<div class="flex flex-wrap items-start justify-between gap-3"><div><div class="text-xs uppercase tracking-wider font-bold text-teal-700">' + portalEscape(assessment.assessment_area) + '</div><h4 class="font-extrabold text-slate-900 mt-1">' + portalEscape(assessment.assessment_name) + '</h4><p class="text-xs text-slate-500 mt-1">' + portalEscape(assessment.assessment_date) + (assessment.record_status === 'partial' ? ' · Partial record' : '') + '</p></div>';
-                        html += '<div class="text-right"><div class="text-2xl font-black text-teal-700">' + portalEscape(pct) + '</div>';
-                        if (assessment.result_score != null && assessment.max_score != null) html += '<div class="text-xs text-slate-500">' + portalEscape(assessment.result_score) + ' / ' + portalEscape(assessment.max_score) + '</div>';
-                        if (assessment.percentile != null) html += '<div class="text-[11px] text-slate-500 mt-1">ASAJ category percentile: ' + portalEscape(Number(assessment.percentile).toFixed(1)) + '%</div>';
-                        html += '</div></div>';
-                        html += '<div class="mt-4 grid gap-2 sm:grid-cols-2">';
+                        assessmentCardHtml += '<div class="p-5 border-t border-slate-200">';
+                        assessmentCardHtml += '<div class="flex flex-wrap items-start justify-between gap-3"><div><div class="text-xs uppercase tracking-wider font-bold text-teal-700">' + portalEscape(assessment.assessment_area) + '</div><h4 class="font-extrabold text-slate-900 mt-1">' + portalEscape(assessment.assessment_name) + '</h4><p class="text-xs text-slate-500 mt-1">' + portalEscape(assessment.assessment_date) + (assessment.record_status === 'partial' ? ' · Partial record' : '') + '</p></div>';
+                        assessmentCardHtml += '<div class="text-right"><div class="text-2xl font-black text-teal-700">' + portalEscape(pct) + '</div>';
+                        if (assessment.result_score != null && assessment.max_score != null) assessmentCardHtml += '<div class="text-xs text-slate-500">' + portalEscape(assessment.result_score) + ' / ' + portalEscape(assessment.max_score) + '</div>';
+                        if (assessment.percentile != null) assessmentCardHtml += '<div class="text-[11px] text-slate-500 mt-1">ASAJ category percentile: ' + portalEscape(Number(assessment.percentile).toFixed(1)) + '%</div>';
+                        assessmentCardHtml += '</div></div>';
+                        assessmentCardHtml += '<div class="mt-4 grid gap-2 sm:grid-cols-2">';
                         for (const item of items) {
                             const scoreText = item.result_status === 'unrecorded' || item.score == null ? 'Not recorded' : (Number(item.score) + ' / ' + Number(item.max_score));
-                            html += '<div class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2"><span class="text-xs font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="text-xs font-extrabold text-slate-900 whitespace-nowrap">' + portalEscape(scoreText) + '</span></div>';
+                            assessmentCardHtml += '<div class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2"><span class="text-xs font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="text-xs font-extrabold text-slate-900 whitespace-nowrap">' + portalEscape(scoreText) + '</span></div>';
                         }
-                        html += '</div></div>';
+                        assessmentCardHtml += '</div></div>';
                     }
+                    html += assessmentCardHtml;
+                    if (assessment.assessment_area === 'Gym') gymHtml += assessmentCardHtml;
+                    if (assessment.assessment_area === 'Pool') poolHtml += assessmentCardHtml;
                 }
-                    const assessmentCardHtml = html.slice(assessmentCardStart);
 if (assessment.assessment_area === 'Gym') gymHtml += assessmentCardHtml;
 if (assessment.assessment_area === 'Pool') poolHtml += assessmentCardHtml;
                                     html += '</div>';
-html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-results-content">' + (gymHtml || '<p class="p-5 text-sm text-slate-500">No Gym results recorded yet.</p>') + '</div>');html = html.replace('<div class="pool-results-content"></div>', '<div class="pool-results-content">' + poolHtml + '</div>');
+html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-results-content">' + (gymHtml || '<p class="p-5 text-sm text-slate-500">No Gym results recorded yet.</p>') + '</div>');
                html = html.replace('<div class="pool-results-content"></div>', '<div class="pool-results-content">' + (poolHtml || '<p class="p-5 text-sm text-slate-500">No Pool results recorded yet.</p>') + '</div>');
                     const participantResult = await client.from('artistic_competition_participants')
                     .select('event_id')
