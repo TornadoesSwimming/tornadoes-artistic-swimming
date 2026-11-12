@@ -3218,10 +3218,12 @@ body { overflow-x: hidden; }
 
             for (const athlete of profileResult.data) {
                 rosterHtml += '<button type="button" onclick="showAthleteProfile(\'' + portalEscape(athlete.id) + '\')" class="text-left bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:border-teal-400 hover:shadow-md transition"><div class="text-xs font-bold uppercase tracking-wider text-teal-700">Athlete Profile</div><div class="font-extrabold text-slate-900 mt-1">' + portalEscape(athlete.full_name) + '</div><div class="text-sm text-slate-500 mt-1">' + portalEscape(athlete.category) + '</div><div class="text-xs font-bold text-teal-700 mt-3">View Athlete Profile →</div></button>';
-                const assessmentResult = await client.from('artistic_assessments')
-                    .select('id,assessment_name,assessment_date,assessment_area,result_score,max_score,score_percent,percentile,record_status')
-                    .eq('athlete_id', athlete.id)
-                    .order('assessment_date', { ascending: false });
+                let assessmentQuery = client.from('artistic_assessments')
+                    .select('id,assessment_name,assessment_date,assessment_area,result_score,max_score,score_percent,percentile,record_status,is_published')
+                    .eq('athlete_id', athlete.id);
+                // Defense in depth: guardians only request published records; RLS remains the security boundary.
+                if (!isStaff) assessmentQuery = assessmentQuery.eq('is_published', true);
+                const assessmentResult = await assessmentQuery.order('assessment_date', { ascending: false });
                 if (assessmentResult.error) throw assessmentResult.error;
 
                 html += '<section id="athlete-profile-detail-' + portalEscape(athlete.id) + '" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">';
