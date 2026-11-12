@@ -3262,6 +3262,9 @@ body { overflow-x: hidden; }
                 html += '<button type="button" class="athlete-tab-btn bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold" data-tab="history">Assessments History</button>';
                 html += '<button type="button" class="athlete-tab-btn bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold" data-tab="development">Development Plan</button>';
                 html += '</div>';
+                                    html += '<div class="athlete-tab-panel hidden" data-athlete-panel="gym"><h4 class="p-5 font-bold text-slate-800">Gym Results</h4><div class="gym-results-content"></div></div>';
+                html += '<div class="athlete-tab-panel hidden" data-athlete-panel="pool"><h4 class="p-5 font-bold text-slate-800">Pool Results</h4><div class="pool-results-content"></div></div>';
+                html += '<div class="athlete-tab-panel hidden" data-athlete-panel="development"><h4 class="p-5 font-bold text-slate-800">Development Plan</h4><div class="development-plan-content"></div></div>';
                                     html += '<div class="athlete-tab-panel hidden" data-athlete-panel="history">';
                 if (!assessmentResult.data || assessmentResult.data.length === 0) {
                     html += '<div class="p-5 text-sm text-slate-500">No published assessments are available yet.</div>';
