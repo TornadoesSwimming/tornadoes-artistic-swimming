@@ -3662,6 +3662,19 @@ html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-
 
         window.onload = function() {
             changeEvaluationCategory('supernovices');
+
+            // Initialize Supabase Auth on every page load so magic-link callbacks
+            // are processed immediately, even when the athlete profile tab is not
+            // the first tab opened after the email redirect.
+            initAthletePortal();
+
+            // Surface Supabase callback errors instead of silently returning to login.
+            const authParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+            const authError = authParams.get('error_description') || authParams.get('error');
+            if (authError) {
+                portalShowLogin();
+                portalStatus(decodeURIComponent(authError.replace(/\+/g, ' ')), true);
+            }
         };
     </script>
 </body>
