@@ -3272,6 +3272,8 @@ body { overflow-x: hidden; }
                     
                 let gymHtml = '';
                 let poolHtml = '';
+                let latestGymChartItems = null;
+                let latestPoolChartItems = null;
                 html += '<section id="athlete-profile-detail-' + portalEscape(athlete.id) + '" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">';
                 html += '<div class="p-3 bg-slate-50 border-b border-slate-200"><button type="button" onclick="backToAthleteRoster()" class="text-sm font-bold text-teal-700 hover:text-teal-900">← Back to Athlete Roster</button></div>';
                 const avatar = athlete.avatar_display_url
@@ -3305,6 +3307,8 @@ body { overflow-x: hidden; }
                         const items = (itemsResult.data || []).slice().sort(function(a,b) {
                             return preferred.indexOf(a.test_name) - preferred.indexOf(b.test_name);
                         });
+                        if (assessment.assessment_area === 'Gym' && !latestGymChartItems) latestGymChartItems = items;
+                        if (assessment.assessment_area === 'Pool' && !latestPoolChartItems) latestPoolChartItems = items;
                         const pct = assessment.score_percent == null ? 'Partial assessment' : Number(assessment.score_percent).toFixed(1) + '%';
                         assessmentCardHtml += '<div class="p-5 border-t border-slate-200">';
                         assessmentCardHtml += '<div class="flex flex-wrap items-start justify-between gap-3"><div><div class="text-xs uppercase tracking-wider font-bold text-teal-700">' + portalEscape(assessment.assessment_area) + '</div><h4 class="font-extrabold text-slate-900 mt-1">' + portalEscape(assessment.assessment_name) + '</h4><p class="text-xs text-slate-500 mt-1">' + portalEscape(assessment.assessment_date) + (assessment.record_status === 'partial' ? ' · Partial record' : '') + '</p></div>';
@@ -3324,8 +3328,27 @@ body { overflow-x: hidden; }
                     }
                 }
                                     html += '</div>';
-html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-results-content">' + (gymHtml || '<p class="p-5 text-sm text-slate-500">No Gym results recorded yet.</p>') + '</div>');
-               html = html.replace('<div class="pool-results-content"></div>', '<div class="pool-results-content">' + (poolHtml || '<p class="p-5 text-sm text-slate-500">No Pool results recorded yet.</p>') + '</div>');
+const buildAssessmentChart = function(title, chartItems) {
+                    if (!chartItems || !chartItems.length) return '';
+                    let chart = '<div class="p-5 border-t border-slate-200"><h4 class="font-extrabold text-slate-900 mb-1">' + title + '</h4><p class="text-xs text-slate-500 mb-4">Latest recorded assessment · individual test scores</p><div class="space-y-3">';
+                    for (const item of chartItems) {
+                        const recorded = item.result_status !== 'unrecorded' && item.score != null && item.max_score != null;
+                        const score = recorded ? Number(item.score) : 0;
+                        const max = recorded ? Number(item.max_score) : 5;
+                        const width = recorded && max > 0 ? Math.max(0, Math.min(100, score / max * 100)) : 0;
+                        chart += '<div><div class="flex justify-between gap-3 text-xs mb-1"><span class="font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="font-bold text-slate-800">' + (recorded ? portalEscape(score + ' / ' + max) : 'Not recorded') + '</span></div><div class="h-2.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full bg-teal-600" style="width:' + width + '%"></div></div></div>';
+                    }
+                    return chart + '</div></div>';
+                };
+                gymHtml += buildAssessmentChart('Gym performance chart', latestGymChartItems);
+                poolHtml += buildAssessmentChart('Pool performance chart', latestPoolChartItems);
+                html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-results-content">' + (gymHtml || '<p class="p-5 text-sm text-slate-500">No Gym results recorded yet.</p>') + '</div>');
+                html = html.replace('<div class="pool-results-content"></div>', '<div class="pool-results-content">' + (poolHtml || '<p class="p-5 text-sm text-slate-500">No Pool results recorded yet.</p>') + '</div>');
+                const isIsabelleDacres = String(athlete.full_name || '').trim().toLowerCase() === 'isabelle dacres';
+                const developmentPlanHtml = isIsabelleDacres
+                    ? '<div class="p-5 space-y-5"><div class="rounded-xl bg-teal-50 border border-teal-100 p-4"><div class="text-xs uppercase tracking-wider font-bold text-teal-700">National Team pathway · January 2027</div><h4 class="font-extrabold text-slate-900 mt-1">National Team Trials Preparation</h4><p class="text-sm text-slate-700 mt-2">Isabelle is scheduled to prepare for the Jamaican National Team Trials in January 2027. She also participated in the Panam Aquatics Technical Duet Training Camp in Peru.</p></div><div><h4 class="font-extrabold text-slate-900 mb-2">Coach observations from the 31 October 2026 assessment</h4><p class="text-sm text-slate-600 mb-3">Gym: 49/55 (89.1%). Pool: 27/35 (77.1%). These results identify the following priorities for focused training:</p><div class="grid gap-3 sm:grid-cols-2"><div class="rounded-xl border border-slate-200 p-4"><h5 class="font-bold text-slate-800">Gym focus areas</h5><ul class="list-disc pl-5 mt-2 text-sm text-slate-600 space-y-1"><li>Shoulder Twist — 3/5</li><li>Push-ups — 4/5</li><li>V-ups — 4/5</li></ul></div><div class="rounded-xl border border-slate-200 p-4"><h5 class="font-bold text-slate-800">Pool focus areas</h5><ul class="list-disc pl-5 mt-2 text-sm text-slate-600 space-y-1"><li>Eggbeater — 3/5</li><li>Barracuda — 3/5</li><li>Vertical Hold — 3/5</li></ul></div></div></div><div><h4 class="font-extrabold text-slate-900 mb-2">Training objectives before January 2027</h4><ul class="list-disc pl-5 text-sm text-slate-600 space-y-1"><li>Improve shoulder mobility and control, with consistent shoulder-twist technique.</li><li>Build upper-body and core strength to improve push-ups and V-ups.</li><li>Improve eggbeater height, stability and endurance.</li><li>Refine barracuda body alignment, vertical position and controlled descent/ascent.</li><li>Increase vertical-hold height and stability under fatigue.</li><li>Apply technical-duet skills from the Peru camp to duet-specific training and performance quality.</li></ul></div><div class="rounded-xl bg-slate-50 border border-slate-200 p-4"><h4 class="font-bold text-slate-800">Coach review</h4><p class="text-sm text-slate-500 mt-1">Review progress at the next assessment and update these priorities using new Gym and Pool scores.</p></div></div>'
+                    : '<div class="p-5 text-sm text-slate-500">The coach has not added an individual development plan for this athlete yet.</div>';
+                html = html.replace('<div class="development-plan-content"></div>', '<div class="development-plan-content">' + developmentPlanHtml + '</div>');
                     const participantResult = await client.from('artistic_competition_participants')
                     .select('event_id')
                     .eq('athlete_id', athlete.id);
