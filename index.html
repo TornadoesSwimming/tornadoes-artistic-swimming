@@ -3106,6 +3106,13 @@ body { overflow-x: hidden; }
             }
         }
 
+        function athletePortalAuthRedirectUrl() {
+            const host = window.location.hostname.toLowerCase();
+            const isOfficialHub = host === 'tornadoes-artistic-swimming.vercel.app';
+            const isOfficialPreview = host.startsWith('tornadoes-artistic-swimming-') && host.endsWith('-tornadoessynchroresources.vercel.app');
+            return (isOfficialHub || isOfficialPreview) ? window.location.origin : 'https://tornadoes-artistic-swimming.vercel.app';
+        }
+
         async function athletePortalSendAccessLink() {
             const email = document.getElementById('athlete-portal-email').value.trim();
             try {
@@ -3113,7 +3120,7 @@ body { overflow-x: hidden; }
                 portalStatus('Sending your secure sign-in link…', false);
                 const result = await client.auth.signInWithOtp({
                     email: email,
-                    options: { emailRedirectTo: window.location.origin, shouldCreateUser: false }
+                    options: { emailRedirectTo: athletePortalAuthRedirectUrl(), shouldCreateUser: false }
                 });
                 if (result.error) throw result.error;
                 portalStatus('If this email belongs to an approved account, a secure sign-in link has been sent. Check your inbox.', false);
@@ -3143,7 +3150,7 @@ body { overflow-x: hidden; }
             }
             try {
                 const client = getTornadoesPortalClient();
-                const result = await client.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+                const result = await client.auth.resetPasswordForEmail(email, { redirectTo: athletePortalAuthRedirectUrl() });
                 if (result.error) throw result.error;
                 portalStatus('If this email is registered, password reset instructions will be sent.', false);
             } catch (error) {
