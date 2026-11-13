@@ -2680,7 +2680,7 @@ body { overflow-x: hidden; }
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <label class="text-xs font-bold text-slate-600">Training date<input id="training-date" type="date" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"></label>
           <label class="text-xs font-bold text-slate-600">Session / training name<input id="training-name" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="e.g. Tuesday Pool Training"></label>
-          <label class="text-xs font-bold text-slate-600">Category<select id="training-category" required onchange="renderTrainingAttendanceRoster()" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"><option value="">Select category</option><option>Super Novice</option><option>Novice</option><option>Intermediate</option><option>12 &amp; Under</option><option>Youth (13–15)</option><option>Juniors</option></select></label>
+          <label class="text-xs font-bold text-slate-600">Category<select id="training-category" required onchange="renderTrainingAttendanceRoster()" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"><option value="">Select category</option><option>Super Novice</option><option>Novice</option><option>Intermediate</option><option>12 &amp; Under</option><option value="Youth &amp; Up">Youth &amp; Up</option><option value="Youth (13–15)">Youth 13–15</option><option>Juniors</option></select></label>
           <label class="text-xs font-bold text-slate-600">Scheduled start<input id="training-start" type="time" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"></label>
           <label class="text-xs font-bold text-slate-600">Scheduled end<input id="training-end" type="time" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"></label>
           <label class="text-xs font-bold text-slate-600">Location<input id="training-location" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="UWI Pool / National Stadium"></label>
@@ -3377,8 +3377,11 @@ html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-
             const category = document.getElementById('training-category').value;
             const roster = document.getElementById('training-attendance-roster');
             const selectedCategory = normalizeAthleteCategory(category);
+            const isYouthAndUp = selectedCategory === 'youth&up';
             const athletes = portalActiveAthletes.filter(function(a) {
-                return normalizeAthleteCategory(getAthleteCompetitionCategory(a)) === selectedCategory;
+                const athleteCategory = normalizeAthleteCategory(getAthleteCompetitionCategory(a));
+                if (isYouthAndUp) return athleteCategory === 'youth13&15' || athleteCategory === 'juniors';
+                return athleteCategory === selectedCategory;
             });
             document.getElementById('training-roster-count').textContent = athletes.length ? athletes.length + ' athletes' : '';
             if (!category) { roster.innerHTML = 'Select a category to load its athletes.'; return; }
