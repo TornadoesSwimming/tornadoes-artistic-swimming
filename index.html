@@ -3212,6 +3212,61 @@ body { overflow-x: hidden; }
             }
         }
 
+        async function saveAssessmentScores(form) {
+            const client = getTornadoesPortalClient();
+            const status = form.querySelector('[data-score-save-status]');
+            const assessmentId = form.querySelector('[name="assessment-id"]').value;
+            try {
+                status.textContent = 'Saving scores…';
+                const inputs = Array.from(form.querySelectorAll('input[name^="score-"]'));
+                let total = 0, maxTotal = 0, recordedCount = 0;
+                for (const input of inputs) {
+                    const itemId = input.name.slice(6);
+                    const raw = input.value.trim();
+                    const score = raw === '' ? null : Number(raw);
+                    const max = Number(input.closest('label').querySelector('span.text-xs.text-slate-500').textContent.replace('/','').trim());
+                    if (score !== null && (!Number.isFinite(score) || score < 0 || score > max)) throw new Error('Each score must be between 0 and ' + max + '.');
+                    const update = { score: score, result_status: score === null ? 'unrecorded' : 'recorded' };
+                    const saved = await client.from('artistic_assessment_items').update(update).eq('id', itemId);
+                    if (saved.error) throw saved.error;
+                    if (score !== null) { total += score; maxTotal += max; recordedCount++; }
+                }
+                const summary = {
+                    result_score: total,
+                    max_score: maxTotal,
+                    score_percent: maxTotal > 0 ? Number((total / maxTotal * 100).toFixed(2)) : null,
+                    record_status: recordedCount === inputs.length ? 'complete' : 'partial'
+                };
+                const updated = await client.from('artistic_assessments').update(summary).eq('id', assessmentId);
+                if (updated.error) throw updated.error;
+                status.textContent = 'Saved. Refreshing…';
+                const session = (await client.auth.getSession()).data.session;
+                await loadAthletePortal(session);
+            } catch (error) {
+                status.textContent = error.message || 'Unable to save scores.';
+                status.className = 'text-xs text-red-600';
+            }
+        }
+
+        async function saveAthleteDevelopmentPlan(athleteId, form) {
+            const client = getTornadoesPortalClient();
+            const status = form.querySelector('[data-plan-save-status]');
+            const fields = ['pathway_title','pathway_description','coach_observations','gym_focus_areas','pool_focus_areas','training_objectives','coach_review'];
+            const payload = { athlete_id: athleteId, updated_by: (await client.auth.getUser()).data.user.id, updated_at: new Date().toISOString() };
+            fields.forEach(function(key) { payload[key] = (form.elements[key].value || '').trim() || null; });
+            try {
+                status.textContent = 'Saving plan…';
+                const result = await client.from('artistic_athlete_development_plans').upsert(payload, { onConflict: 'athlete_id' });
+                if (result.error) throw result.error;
+                status.textContent = 'Saved. Refreshing…';
+                const session = (await client.auth.getSession()).data.session;
+                await loadAthletePortal(session);
+            } catch (error) {
+                status.textContent = error.message || 'Unable to save Development Plan.';
+                status.className = 'text-xs text-red-600';
+            }
+        }
+
         async function loadAthletePortal(session) {
             const client = getTornadoesPortalClient();
             document.getElementById('athlete-portal-login').classList.add('hidden');
@@ -3300,7 +3355,7 @@ body { overflow-x: hidden; }
                     for (const assessment of assessmentResult.data) {
                         let assessmentCardHtml = '';
                         const itemsResult = await client.from('artistic_assessment_items')
-                            .select('test_name,score,max_score,result_status')
+                            .select('id,test_name,score,max_score,result_status')
                             .eq('assessment_id', assessment.id);
                         if (itemsResult.error) throw itemsResult.error;
                         const preferred = assessment.assessment_area === 'Gym' ? gymOrder : poolOrder;
@@ -3316,12 +3371,19 @@ body { overflow-x: hidden; }
                         if (assessment.result_score != null && assessment.max_score != null) assessmentCardHtml += '<div class="text-xs text-slate-500">' + portalEscape(assessment.result_score) + ' / ' + portalEscape(assessment.max_score) + '</div>';
                         if (assessment.percentile != null) assessmentCardHtml += '<div class="text-[11px] text-slate-500 mt-1">ASAJ category percentile: ' + portalEscape(Number(assessment.percentile).toFixed(1)) + '%</div>';
                         assessmentCardHtml += '</div></div>';
-                        assessmentCardHtml += '<div class="mt-4 grid gap-2 sm:grid-cols-2">';
+                        if (isStaff) assessmentCardHtml += '<form class="mt-4" onsubmit="event.preventDefault(); saveAssessmentScores(this)"><input type="hidden" name="assessment-id" value="' + portalEscape(assessment.id) + '"><div class="grid gap-2 sm:grid-cols-2">';
+                        else assessmentCardHtml += '<div class="mt-4 grid gap-2 sm:grid-cols-2">';
                         for (const item of items) {
                             const scoreText = item.result_status === 'unrecorded' || item.score == null ? 'Not recorded' : (Number(item.score) + ' / ' + Number(item.max_score));
-                            assessmentCardHtml += '<div class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2"><span class="text-xs font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="text-xs font-extrabold text-slate-900 whitespace-nowrap">' + portalEscape(scoreText) + '</span></div>';
+                            if (isStaff) {
+                                assessmentCardHtml += '<label class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2"><span class="text-xs font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="flex items-center gap-1"><input type="number" min="0" max="' + portalEscape(item.max_score) + '" step="0.5" name="score-' + portalEscape(item.id) + '" value="' + (item.score == null ? '' : portalEscape(item.score)) + '" placeholder="—" class="w-16 rounded border border-slate-300 px-2 py-1 text-right text-xs font-bold"><span class="text-xs text-slate-500">/ ' + portalEscape(item.max_score) + '</span></span></label>';
+                            } else {
+                                assessmentCardHtml += '<div class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2"><span class="text-xs font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="text-xs font-extrabold text-slate-900 whitespace-nowrap">' + portalEscape(scoreText) + '</span></div>';
+                            }
                         }
-                        assessmentCardHtml += '</div></div>';
+                        assessmentCardHtml += '</div>';
+                        if (isStaff) assessmentCardHtml += '<div class="mt-3 flex items-center gap-3"><button type="submit" class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white">Save ' + portalEscape(assessment.assessment_area) + ' scores</button><span class="text-xs text-slate-500" data-score-save-status></span></div></form>';
+                        assessmentCardHtml += '</div>';
                         html += assessmentCardHtml;
                         if (assessment.assessment_area === 'Gym') gymHtml += assessmentCardHtml;
                         if (assessment.assessment_area === 'Pool') poolHtml += assessmentCardHtml;
@@ -3344,10 +3406,37 @@ const buildAssessmentChart = function(title, chartItems) {
                 poolHtml += buildAssessmentChart('Pool performance chart', latestPoolChartItems);
                 html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-results-content">' + (gymHtml || '<p class="p-5 text-sm text-slate-500">No Gym results recorded yet.</p>') + '</div>');
                 html = html.replace('<div class="pool-results-content"></div>', '<div class="pool-results-content">' + (poolHtml || '<p class="p-5 text-sm text-slate-500">No Pool results recorded yet.</p>') + '</div>');
-                const isIsabelleDacres = String(athlete.full_name || '').trim().toLowerCase() === 'isabelle dacres';
-                const developmentPlanHtml = isIsabelleDacres
-                    ? '<div class="p-5 space-y-5"><div class="rounded-xl bg-teal-50 border border-teal-100 p-4"><div class="text-xs uppercase tracking-wider font-bold text-teal-700">National Team pathway · January 2027</div><h4 class="font-extrabold text-slate-900 mt-1">National Team Trials Preparation</h4><p class="text-sm text-slate-700 mt-2">Isabelle is scheduled to prepare for the Jamaican National Team Trials in January 2027. She also participated in the Panam Aquatics Technical Duet Training Camp in Peru.</p></div><div><h4 class="font-extrabold text-slate-900 mb-2">Coach observations from the 31 October 2026 assessment</h4><p class="text-sm text-slate-600 mb-3">Gym: 49/55 (89.1%). Pool: 27/35 (77.1%). These results identify the following priorities for focused training:</p><div class="grid gap-3 sm:grid-cols-2"><div class="rounded-xl border border-slate-200 p-4"><h5 class="font-bold text-slate-800">Gym focus areas</h5><ul class="list-disc pl-5 mt-2 text-sm text-slate-600 space-y-1"><li>Shoulder Twist — 3/5</li><li>Push-ups — 4/5</li><li>V-ups — 4/5</li></ul></div><div class="rounded-xl border border-slate-200 p-4"><h5 class="font-bold text-slate-800">Pool focus areas</h5><ul class="list-disc pl-5 mt-2 text-sm text-slate-600 space-y-1"><li>Eggbeater — 3/5</li><li>Barracuda — 3/5</li><li>Vertical Hold — 3/5</li></ul></div></div></div><div><h4 class="font-extrabold text-slate-900 mb-2">Training objectives before January 2027</h4><ul class="list-disc pl-5 text-sm text-slate-600 space-y-1"><li>Improve shoulder mobility and control, with consistent shoulder-twist technique.</li><li>Build upper-body and core strength to improve push-ups and V-ups.</li><li>Improve eggbeater height, stability and endurance.</li><li>Refine barracuda body alignment, vertical position and controlled descent/ascent.</li><li>Increase vertical-hold height and stability under fatigue.</li><li>Apply technical-duet skills from the Peru camp to duet-specific training and performance quality.</li></ul></div><div class="rounded-xl bg-slate-50 border border-slate-200 p-4"><h4 class="font-bold text-slate-800">Coach review</h4><p class="text-sm text-slate-500 mt-1">Review progress at the next assessment and update these priorities using new Gym and Pool scores.</p></div></div>'
-                    : '<div class="p-5 text-sm text-slate-500">The coach has not added an individual development plan for this athlete yet.</div>';
+                const planResult = await client.from('artistic_athlete_development_plans')
+                    .select('pathway_title,pathway_description,coach_observations,gym_focus_areas,pool_focus_areas,training_objectives,coach_review')
+                    .eq('athlete_id', athlete.id)
+                    .maybeSingle();
+                if (planResult.error) throw planResult.error;
+                const plan = planResult.data || {};
+                const planText = function(value) { return portalEscape(value || ''); };
+                let developmentPlanHtml = '';
+                if (isStaff) {
+                    developmentPlanHtml = '<form class="p-5 space-y-3" onsubmit="event.preventDefault(); saveAthleteDevelopmentPlan(\'' + portalEscape(athlete.id) + '\',this)">' +
+                        '<label class="block text-xs font-bold text-slate-600">Pathway title<input name="pathway_title" value="' + planText(plan.pathway_title) + '" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal"></label>' +
+                        '<label class="block text-xs font-bold text-slate-600">Pathway description<textarea name="pathway_description" rows="2" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal">' + planText(plan.pathway_description) + '</textarea></label>' +
+                        '<label class="block text-xs font-bold text-slate-600">Coach observations<textarea name="coach_observations" rows="3" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal">' + planText(plan.coach_observations) + '</textarea></label>' +
+                        '<div class="grid gap-3 sm:grid-cols-2"><label class="block text-xs font-bold text-slate-600">Gym focus areas<textarea name="gym_focus_areas" rows="3" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal">' + planText(plan.gym_focus_areas) + '</textarea></label>' +
+                        '<label class="block text-xs font-bold text-slate-600">Pool focus areas<textarea name="pool_focus_areas" rows="3" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal">' + planText(plan.pool_focus_areas) + '</textarea></label></div>' +
+                        '<label class="block text-xs font-bold text-slate-600">Training objectives<textarea name="training_objectives" rows="6" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal">' + planText(plan.training_objectives) + '</textarea></label>' +
+                        '<label class="block text-xs font-bold text-slate-600">Coach review<textarea name="coach_review" rows="3" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal">' + planText(plan.coach_review) + '</textarea></label>' +
+                        '<div class="flex items-center gap-3"><button type="submit" class="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-bold text-white">Save Development Plan</button><span class="text-xs text-slate-500" data-plan-save-status></span></div></form>';
+                } else if (plan.pathway_title || plan.coach_observations || plan.training_objectives) {
+                    const bullets = function(value) { return (value || '').split(/\n|;/).map(x => x.trim()).filter(Boolean).map(x => '<li>' + portalEscape(x) + '</li>').join(''); };
+                    developmentPlanHtml = '<div class="p-5 space-y-5">' +
+                        (plan.pathway_title ? '<div class="rounded-xl bg-teal-50 border border-teal-100 p-4"><div class="text-xs uppercase tracking-wider font-bold text-teal-700">Athlete pathway</div><h4 class="font-extrabold text-slate-900 mt-1">' + planText(plan.pathway_title) + '</h4><p class="text-sm text-slate-700 mt-2">' + planText(plan.pathway_description) + '</p></div>' : '') +
+                        (plan.coach_observations ? '<div><h4 class="font-extrabold text-slate-900 mb-2">Coach observations</h4><p class="text-sm text-slate-600 whitespace-pre-line">' + planText(plan.coach_observations) + '</p></div>' : '') +
+                        '<div class="grid gap-3 sm:grid-cols-2">' +
+                        (plan.gym_focus_areas ? '<div class="rounded-xl border border-slate-200 p-4"><h5 class="font-bold text-slate-800">Gym focus areas</h5><ul class="list-disc pl-5 mt-2 text-sm text-slate-600 space-y-1">' + bullets(plan.gym_focus_areas) + '</ul></div>' : '') +
+                        (plan.pool_focus_areas ? '<div class="rounded-xl border border-slate-200 p-4"><h5 class="font-bold text-slate-800">Pool focus areas</h5><ul class="list-disc pl-5 mt-2 text-sm text-slate-600 space-y-1">' + bullets(plan.pool_focus_areas) + '</ul></div>' : '') + '</div>' +
+                        (plan.training_objectives ? '<div><h4 class="font-extrabold text-slate-900 mb-2">Training objectives</h4><ul class="list-disc pl-5 text-sm text-slate-600 space-y-1">' + bullets(plan.training_objectives) + '</ul></div>' : '') +
+                        (plan.coach_review ? '<div class="rounded-xl bg-slate-50 border border-slate-200 p-4"><h4 class="font-bold text-slate-800">Coach review</h4><p class="text-sm text-slate-500 mt-1 whitespace-pre-line">' + planText(plan.coach_review) + '</p></div>' : '') + '</div>';
+                } else {
+                    developmentPlanHtml = '<div class="p-5 text-sm text-slate-500">The coach has not added an individual development plan for this athlete yet.</div>';
+                }
                 html = html.replace('<div class="development-plan-content"></div>', '<div class="development-plan-content">' + developmentPlanHtml + '</div>');
                     const participantResult = await client.from('artistic_competition_participants')
                     .select('event_id')
