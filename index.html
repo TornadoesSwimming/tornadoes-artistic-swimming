@@ -3240,6 +3240,7 @@ body { overflow-x: hidden; }
                 .eq('is_active', true)
                 .order('full_name', { ascending: true });
             if (profileResult.error) throw profileResult.error;
+                portalActiveAthletes = profileResult.data || [];
 
             for (const athlete of (profileResult.data || [])) {
                 athlete.avatar_display_url = '';
