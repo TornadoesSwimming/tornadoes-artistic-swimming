@@ -3310,13 +3310,11 @@ body { overflow-x: hidden; }
                             assessmentCardHtml += '<div class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2"><span class="text-xs font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="text-xs font-extrabold text-slate-900 whitespace-nowrap">' + portalEscape(scoreText) + '</span></div>';
                         }
                         assessmentCardHtml += '</div></div>';
+                        html += assessmentCardHtml;
+                        if (assessment.assessment_area === 'Gym') gymHtml += assessmentCardHtml;
+                        if (assessment.assessment_area === 'Pool') poolHtml += assessmentCardHtml;
                     }
-                    html += assessmentCardHtml;
-                    if (assessment.assessment_area === 'Gym') gymHtml += assessmentCardHtml;
-                    if (assessment.assessment_area === 'Pool') poolHtml += assessmentCardHtml;
                 }
-if (assessment.assessment_area === 'Gym') gymHtml += assessmentCardHtml;
-if (assessment.assessment_area === 'Pool') poolHtml += assessmentCardHtml;
                                     html += '</div>';
 html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-results-content">' + (gymHtml || '<p class="p-5 text-sm text-slate-500">No Gym results recorded yet.</p>') + '</div>');
                html = html.replace('<div class="pool-results-content"></div>', '<div class="pool-results-content">' + (poolHtml || '<p class="p-5 text-sm text-slate-500">No Pool results recorded yet.</p>') + '</div>');
