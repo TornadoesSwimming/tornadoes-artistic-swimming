@@ -3072,6 +3072,22 @@ body { overflow-x: hidden; }
 
         let portalActiveAthletes = [];
 
+        // Competition/attendance category can differ from the athlete's training group.
+        // Keep the profile category unchanged; apply these season-specific competition placements here.
+        function getAthleteCompetitionCategory(athlete) {
+            const name = String(athlete.full_name || '').trim().toLowerCase();
+            if (name === 'avril-renee montgomery' || name === 'avril-renée montgomery') return 'Youth (13–15)';
+            if (name === 'naoma grayson') return 'Juniors';
+            return athlete.category || '';
+        }
+
+        function normalizeAthleteCategory(value) {
+            return String(value || '').toLowerCase()
+                .replace(/&amp;/g, '&')
+                .replace(/[()\s\-–—]/g, '')
+                .replace(/[^a-z0-9&]/g, '');
+        }
+
         function showAthleteProfile(athleteId) {
             const roster = document.getElementById('athlete-profile-roster');
             const details = document.getElementById('athlete-profile-details');
@@ -3341,7 +3357,8 @@ html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-
                 document.getElementById('training-attendance-panel').classList.remove('hidden');
                 document.getElementById('competition-admin-panel').classList.remove('hidden');
                 document.getElementById('competition-athlete-picker').innerHTML = profileResult.data.map(function(a) {
-                    return '<label class="flex items-center gap-2 rounded-lg bg-slate-50 p-2"><input type="checkbox" name="competition-athlete" value="' + portalEscape(a.id) + '" class="rounded border-slate-300"><span>' + portalEscape(a.full_name) + ' <span class="text-slate-400">(' + portalEscape(a.category) + ')</span></span></label>';
+                    const competitionCategory = getAthleteCompetitionCategory(a);
+                    return '<label class="flex items-center gap-2 rounded-lg bg-slate-50 p-2"><input type="checkbox" name="competition-athlete" value="' + portalEscape(a.id) + '" class="rounded border-slate-300"><span>' + portalEscape(a.full_name) + ' <span class="text-slate-400">(Competition: ' + portalEscape(competitionCategory) + ')</span></span></label>';
                 }).join('');
             } else {
                 portalActiveAthletes = profileResult.data;
@@ -3354,7 +3371,10 @@ html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-
         function renderTrainingAttendanceRoster() {
             const category = document.getElementById('training-category').value;
             const roster = document.getElementById('training-attendance-roster');
-            const athletes = portalActiveAthletes.filter(function(a) { return a.category === category; });
+            const selectedCategory = normalizeAthleteCategory(category);
+            const athletes = portalActiveAthletes.filter(function(a) {
+                return normalizeAthleteCategory(getAthleteCompetitionCategory(a)) === selectedCategory;
+            });
             document.getElementById('training-roster-count').textContent = athletes.length ? athletes.length + ' athletes' : '';
             if (!category) { roster.innerHTML = 'Select a category to load its athletes.'; return; }
             if (!athletes.length) { roster.innerHTML = '<div class="p-3 text-amber-700">No active athletes found in this category.</div>'; return; }
@@ -3430,11 +3450,24 @@ html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-
             const selectedAthletes = Array.from(document.querySelectorAll('input[name="competition-athlete"]:checked')).map(function(input) { return input.value; });
             const status = document.getElementById('competition-save-status');
             if (!selectedAthletes.length) { status.textContent = 'Select at least one athlete.'; return; }
+            const selectedRecords = portalActiveAthletes.filter(function(a) { return selectedAthletes.includes(a.id); });
+            const selectedCategories = Array.from(new Set(selectedRecords.map(getAthleteCompetitionCategory)));
+            if (selectedCategories.length !== 1) {
+                status.textContent = 'Please save separate competition results for each category. Selected athletes belong to: ' + selectedCategories.join(', ') + '.';
+                return;
+            }
+            const competitionCategory = selectedCategories[0];
+            const categoryInput = document.getElementById('competition-category');
+            if (categoryInput.value.trim() && normalizeAthleteCategory(categoryInput.value) !== normalizeAthleteCategory(competitionCategory)) {
+                status.textContent = 'The selected athletes are in ' + competitionCategory + '. Please correct the competition category before saving.';
+                return;
+            }
+            categoryInput.value = competitionCategory;
             const payload = {
                 competition_name: document.getElementById('competition-name').value.trim(),
                 competition_date: document.getElementById('competition-date').value || null,
                 modality: document.getElementById('competition-modality').value,
-                category: document.getElementById('competition-category').value.trim() || null,
+                category: competitionCategory,
                 event_name: document.getElementById('competition-event-name').value.trim() || null,
                 official_score: document.getElementById('competition-score').value === '' ? null : Number(document.getElementById('competition-score').value),
                 placement: document.getElementById('competition-placement').value.trim() || null,
