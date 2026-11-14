@@ -166,7 +166,7 @@ body { overflow-x: hidden; }
 <div class="flex items-center gap-3 bg-slate-800/80 px-4 py-2 rounded-xl border border-teal-500/30">
 <div class="text-right">
 <div class="text-xs font-semibold text-slate-300">TOTAL SQUAD</div>
-<div class="text-xl font-black text-teal-400">24 Swimmers</div>
+<div class="text-xl font-black text-teal-400">25 Swimmers</div>
 </div>
 <div class="h-8 w-px bg-slate-700"></div>
 <div class="text-xs text-amber-400 font-bold uppercase tracking-wider">
@@ -2761,7 +2761,7 @@ body { overflow-x: hidden; }
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <label class="text-xs font-bold text-slate-600">Training date<input id="training-date" type="date" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"></label>
           <label class="text-xs font-bold text-slate-600">Session / training name<input id="training-name" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="e.g. Tuesday Pool Training"></label>
-          <label class="text-xs font-bold text-slate-600">Category<select id="training-category" required onchange="renderTrainingAttendanceRoster()" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"><option value="">Select category</option><option>Super Novice</option><option>Novice</option><option>Intermediate</option><option>12 &amp; Under</option><option>Youth &amp; Up</option><option>Juniors</option></select></label>
+          <label class="text-xs font-bold text-slate-600">Category<select id="training-category" required onchange="renderTrainingAttendanceRoster()" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"><option value="">Select category</option><option>Super Novice</option><option>Novice</option><option>Intermediate</option><option>12 &amp; Under</option><option value="Youth (13–15)">Youth</option><option>Juniors</option></select></label>
           <label class="text-xs font-bold text-slate-600">Scheduled start<input id="training-start" type="time" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"></label>
           <label class="text-xs font-bold text-slate-600">Scheduled end<input id="training-end" type="time" required class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"></label>
           <label class="text-xs font-bold text-slate-600">Location<input id="training-location" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm" placeholder="UWI Pool / National Stadium"></label>
@@ -3106,6 +3106,13 @@ body { overflow-x: hidden; }
             }
         }
 
+        function athletePortalAuthRedirectUrl() {
+            const host = window.location.hostname.toLowerCase();
+            const isOfficialHub = host === 'tornadoes-artistic-swimming.vercel.app';
+            const isOfficialPreview = host.startsWith('tornadoes-artistic-swimming-') && host.endsWith('-tornadoessynchroresources.vercel.app');
+            return (isOfficialHub || isOfficialPreview) ? window.location.origin : 'https://tornadoes-artistic-swimming.vercel.app';
+        }
+
         async function athletePortalSendAccessLink() {
             const email = document.getElementById('athlete-portal-email').value.trim();
             try {
@@ -3113,7 +3120,7 @@ body { overflow-x: hidden; }
                 portalStatus('Sending your secure sign-in link…', false);
                 const result = await client.auth.signInWithOtp({
                     email: email,
-                    options: { emailRedirectTo: window.location.origin, shouldCreateUser: false }
+                    options: { emailRedirectTo: athletePortalAuthRedirectUrl(), shouldCreateUser: false }
                 });
                 if (result.error) throw result.error;
                 portalStatus('If this email belongs to an approved account, a secure sign-in link has been sent. Check your inbox.', false);
@@ -3153,6 +3160,194 @@ body { overflow-x: hidden; }
 
         let portalActiveAthletes = [];
 
+        // Competition/attendance category can differ from the athlete's training group.
+        // Keep the profile category unchanged; apply these season-specific competition placements here.
+        function getAthleteCompetitionCategory(athlete) {
+            const name = String(athlete.full_name || '').trim().toLowerCase();
+            if (name === 'avril-renee montgomery' || name === 'avril-renée montgomery') return 'Youth (13–15)';
+            if (name === 'naoma grayson') return 'Juniors';
+            return athlete.category || '';
+        }
+
+        function normalizeAthleteCategory(value) {
+            return String(value || '').toLowerCase()
+                .replace(/&amp;/g, '&')
+                .replace(/[()\s\-–—]/g, '')
+                .replace(/[^a-z0-9&]/g, '');
+        }
+
+        function showAthleteProfile(athleteId) {
+            const roster = document.getElementById('athlete-profile-roster');
+            const details = document.getElementById('athlete-profile-details');
+            if (!roster || !details) return;
+            roster.classList.add('hidden');
+            details.classList.remove('hidden');
+            details.querySelectorAll('[id^="athlete-profile-detail-"]').forEach(function(profile) {
+                profile.classList.add('hidden');
+            });
+            const selected = document.getElementById('athlete-profile-detail-' + athleteId);
+            if (selected) selected.classList.remove('hidden');
+        }
+        function switchAthleteProfileTab(button, tabId) {
+            const profile = button.closest('[id^="athlete-profile-detail-"]');
+            if (!profile) return;
+
+            profile.querySelectorAll('.athlete-tab-panel').forEach(function(panel) {
+                panel.classList.add('hidden');
+            });
+
+            const selectedPanel = profile.querySelector('[data-athlete-panel="' + tabId + '"]');
+            if (selectedPanel) selectedPanel.classList.remove('hidden');
+
+            profile.querySelectorAll('.athlete-tab-btn').forEach(function(tab) {
+                tab.classList.remove('active', 'bg-teal-600', 'text-white');
+                tab.classList.add('bg-slate-100', 'text-slate-700');
+            });
+
+            button.classList.add('active', 'bg-teal-600', 'text-white');
+            button.classList.remove('bg-slate-100', 'text-slate-700');
+        }
+        
+
+        function backToAthleteRoster() {
+            const roster = document.getElementById('athlete-profile-roster');
+            const details = document.getElementById('athlete-profile-details');
+            if (details) details.classList.add('hidden');
+            if (roster) roster.classList.remove('hidden');
+        }
+
+
+        function renderAthletePersonalEditor(athlete, isStaff) {
+            const val = function(v) { return portalEscape(v || ''); };
+            const field = function(label, key, type) {
+                return '<label class="block text-xs font-bold text-slate-600">' + label +
+                    '<input data-personal-field="' + key + '" type="' + (type || 'text') + '" value="' + val(athlete[key]) +
+                    '" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal text-slate-800"></label>';
+            };
+            return '<section class="p-5 border-b border-slate-200 bg-slate-50/70">' +
+                '<div class="flex flex-wrap items-center justify-between gap-2 mb-3"><div><h4 class="font-extrabold text-slate-900"><i class="fas fa-id-card text-teal-600 mr-2"></i>Personal Information</h4><p class="text-xs text-slate-500 mt-1">' + (isStaff ? 'Coach / staff editing access' : 'Family editing access') + '</p></div><span class="text-[11px] font-bold rounded-full px-3 py-1 bg-teal-100 text-teal-800">Editable profile</span></div>' +
+                '<form onsubmit="event.preventDefault(); saveAthletePersonalDetails(\'' + val(athlete.id) + '\',' + (isStaff ? 'true' : 'false') + ',this)" class="space-y-3">' +
+                '<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">' +
+                field('Date of birth','date_of_birth','date') + field('School','school_name') + field('Athlete WhatsApp','athlete_whatsapp','tel') +
+                field('Mother / guardian name','mother_name') + field('Mother WhatsApp','mother_whatsapp','tel') + field('Mother email','mother_email','email') +
+                field('Father name','father_name') + field('Father WhatsApp','father_whatsapp','tel') + field('Father email','father_email','email') +
+                '</div><label class="block text-xs font-bold text-slate-600">Profile photo <input name="athlete-photo" type="file" accept="image/*" class="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm font-normal"></label>' +
+                '<div class="flex flex-wrap items-center gap-3"><button type="submit" class="rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold px-5 py-2.5 text-sm"><i class="fas fa-save mr-2"></i>Save personal details</button><span class="text-xs text-slate-500" data-profile-save-status role="status"></span></div>' +
+                '</form></section>';
+        }
+
+        async function saveAthletePersonalDetails(athleteId, isStaff, form) {
+            const client = getTornadoesPortalClient();
+            const status = form.querySelector('[data-profile-save-status]');
+            const value = function(key) { return form.querySelector('[data-personal-field="' + key + '"]').value.trim() || null; };
+            const payload = {
+                p_athlete_id: athleteId,
+                p_date_of_birth: value('date_of_birth'),
+                p_school_name: value('school_name'),
+                p_athlete_whatsapp: value('athlete_whatsapp'),
+                p_mother_name: value('mother_name'),
+                p_mother_whatsapp: value('mother_whatsapp'),
+                p_mother_email: value('mother_email'),
+                p_father_name: value('father_name'),
+                p_father_whatsapp: value('father_whatsapp'),
+                p_father_email: value('father_email')
+            };
+            const file = form.querySelector('input[name="athlete-photo"]').files[0];
+            try {
+                status.textContent = 'Saving…';
+                let avatarPath = null;
+                if (file) {
+                    if (!file.type.startsWith('image/')) throw new Error('Please choose an image file.');
+                    if (file.size > 5 * 1024 * 1024) throw new Error('Photo must be 5 MB or smaller.');
+                    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
+                    avatarPath = athleteId + '/profile-' + Date.now() + '.' + ext;
+                    const upload = await client.storage.from('athlete-photos').upload(avatarPath, file, { upsert: true, contentType: file.type });
+                    if (upload.error) throw upload.error;
+                }
+                if (isStaff) {
+                    const update = {
+                        date_of_birth: payload.p_date_of_birth,
+                        school_name: payload.p_school_name,
+                        athlete_whatsapp: payload.p_athlete_whatsapp,
+                        mother_name: payload.p_mother_name,
+                        mother_whatsapp: payload.p_mother_whatsapp,
+                        mother_email: payload.p_mother_email,
+                        father_name: payload.p_father_name,
+                        father_whatsapp: payload.p_father_whatsapp,
+                        father_email: payload.p_father_email,
+                        updated_at: new Date().toISOString()
+                    };
+                    if (avatarPath) update.avatar_url = avatarPath;
+                    const result = await client.from('artistic_athlete_profiles').update(update).eq('id', athleteId);
+                    if (result.error) throw result.error;
+                } else {
+                    payload.p_avatar_url = avatarPath;
+                    const result = await client.rpc('update_guardian_athlete_personal_details', payload);
+                    if (result.error) throw result.error;
+                }
+                status.textContent = 'Saved successfully. Refreshing profile…';
+                await loadAthletePortal((await client.auth.getSession()).data.session);
+            } catch (error) {
+                status.textContent = error.message || 'Unable to save profile.';
+                status.className = 'text-xs text-red-600';
+            }
+        }
+
+        async function saveAssessmentScores(form) {
+            const client = getTornadoesPortalClient();
+            const status = form.querySelector('[data-score-save-status]');
+            const assessmentId = form.querySelector('[name="assessment-id"]').value;
+            try {
+                status.textContent = 'Saving scores…';
+                const inputs = Array.from(form.querySelectorAll('input[name^="score-"]'));
+                let total = 0, maxTotal = 0, recordedCount = 0;
+                for (const input of inputs) {
+                    const itemId = input.name.slice(6);
+                    const raw = input.value.trim();
+                    const score = raw === '' ? null : Number(raw);
+                    const max = Number(input.closest('label').querySelector('span.text-xs.text-slate-500').textContent.replace('/','').trim());
+                    if (score !== null && (!Number.isFinite(score) || score < 0 || score > max)) throw new Error('Each score must be between 0 and ' + max + '.');
+                    const update = { score: score, result_status: score === null ? 'unrecorded' : 'recorded' };
+                    const saved = await client.from('artistic_assessment_items').update(update).eq('id', itemId);
+                    if (saved.error) throw saved.error;
+                    if (score !== null) { total += score; maxTotal += max; recordedCount++; }
+                }
+                const summary = {
+                    result_score: total,
+                    max_score: maxTotal,
+                    score_percent: maxTotal > 0 ? Number((total / maxTotal * 100).toFixed(2)) : null,
+                    record_status: recordedCount === inputs.length ? 'complete' : 'partial'
+                };
+                const updated = await client.from('artistic_assessments').update(summary).eq('id', assessmentId);
+                if (updated.error) throw updated.error;
+                status.textContent = 'Saved. Refreshing…';
+                const session = (await client.auth.getSession()).data.session;
+                await loadAthletePortal(session);
+            } catch (error) {
+                status.textContent = error.message || 'Unable to save scores.';
+                status.className = 'text-xs text-red-600';
+            }
+        }
+
+        async function saveAthleteDevelopmentPlan(athleteId, form) {
+            const client = getTornadoesPortalClient();
+            const status = form.querySelector('[data-plan-save-status]');
+            const fields = ['pathway_title','pathway_description','coach_observations','gym_focus_areas','pool_focus_areas','training_objectives','coach_review'];
+            const payload = { athlete_id: athleteId, updated_by: (await client.auth.getUser()).data.user.id, updated_at: new Date().toISOString() };
+            fields.forEach(function(key) { payload[key] = (form.elements[key].value || '').trim() || null; });
+            try {
+                status.textContent = 'Saving plan…';
+                const result = await client.from('artistic_athlete_development_plans').upsert(payload, { onConflict: 'athlete_id' });
+                if (result.error) throw result.error;
+                status.textContent = 'Saved. Refreshing…';
+                const session = (await client.auth.getSession()).data.session;
+                await loadAthletePortal(session);
+            } catch (error) {
+                status.textContent = error.message || 'Unable to save Development Plan.';
+                status.className = 'text-xs text-red-600';
+            }
+        }
+
         async function loadAthletePortal(session) {
             const client = getTornadoesPortalClient();
             document.getElementById('athlete-portal-login').classList.add('hidden');
@@ -3177,10 +3372,19 @@ body { overflow-x: hidden; }
                 : 'Only profiles assigned to this account are shown.';
 
             const profileResult = await client.from('artistic_athlete_profiles')
-                .select('id,full_name,category')
+                .select('id,full_name,category,date_of_birth,school_name,athlete_whatsapp,mother_name,mother_whatsapp,mother_email,father_name,father_whatsapp,father_email,avatar_url')
                 .eq('is_active', true)
                 .order('full_name', { ascending: true });
             if (profileResult.error) throw profileResult.error;
+                portalActiveAthletes = profileResult.data || [];
+
+            for (const athlete of (profileResult.data || [])) {
+                athlete.avatar_display_url = '';
+                if (athlete.avatar_url) {
+                    const photo = await client.storage.from('athlete-photos').createSignedUrl(athlete.avatar_url, 3600);
+                    if (!photo.error && photo.data) athlete.avatar_display_url = photo.data.signedUrl;
+                }
+            }
 
             if (!profileResult.data || profileResult.data.length === 0) {
                 container.innerHTML = '<div class="bg-white rounded-xl border border-amber-200 p-6 text-sm text-slate-700"><strong>No athlete profile is linked to this account yet.</strong><p class="mt-2 text-slate-500">Please contact Tornadoes Administration to activate your family access.</p></div>';
@@ -3190,44 +3394,132 @@ body { overflow-x: hidden; }
             const gymOrder = ['Push-ups','V-ups','Tuck-ups','Frog Jumps','Back Arch','Shoulder Twist','Bridge','Right Split','Left Split','Middle Split','Forward Fold','Ballet Leg Extension'];
             const poolOrder = ['Swimming Speed','Head-First Sculling','Eggbeater','Barracuda','Body Boost','Ariana','Vertical Hold','Upside-Down Split'];
             let html = '';
+            let rosterHtml = '<div id="athlete-profile-roster" class="space-y-4"><div><h3 class="text-lg font-extrabold text-slate-900">Athlete Roster</h3><p class="text-sm text-slate-500 mt-1">Select an athlete to open their individual development profile.</p></div><div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">';
 
             for (const athlete of profileResult.data) {
-                const assessmentResult = await client.from('artistic_assessments')
-                    .select('id,assessment_name,assessment_date,assessment_area,result_score,max_score,score_percent,percentile,record_status')
-                    .eq('athlete_id', athlete.id)
-                    .order('assessment_date', { ascending: false });
+                rosterHtml += '<button type="button" onclick="showAthleteProfile(\'' + portalEscape(athlete.id) + '\')" class="text-left bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:border-teal-400 hover:shadow-md transition"><div class="text-xs font-bold uppercase tracking-wider text-teal-700">Athlete Profile</div><div class="font-extrabold text-slate-900 mt-1">' + portalEscape(athlete.full_name) + '</div><div class="text-sm text-slate-500 mt-1">' + portalEscape(athlete.category) + '</div><div class="text-xs font-bold text-teal-700 mt-3">View Athlete Profile →</div></button>';
+                let assessmentQuery = client.from('artistic_assessments')
+                    .select('id,assessment_name,assessment_date,assessment_area,result_score,max_score,score_percent,percentile,record_status,is_published')
+                    .eq('athlete_id', athlete.id);
+                // Defense in depth: guardians only request published records; RLS remains the security boundary.
+                if (!isStaff) assessmentQuery = assessmentQuery.eq('is_published', true);
+                const assessmentResult = await assessmentQuery.order('assessment_date', { ascending: false });
                 if (assessmentResult.error) throw assessmentResult.error;
-
-                html += '<section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">';
-                html += '<div class="bg-slate-900 text-white p-5"><div class="text-xs uppercase tracking-widest text-teal-300 font-bold">Tornadoes athlete</div><h3 class="text-2xl font-extrabold mt-1">' + portalEscape(athlete.full_name) + '</h3><p class="text-sm text-slate-300 mt-1">' + portalEscape(athlete.category) + '</p></div>';
+                    
+                let gymHtml = '';
+                let poolHtml = '';
+                let latestGymChartItems = null;
+                let latestPoolChartItems = null;
+                html += '<section id="athlete-profile-detail-' + portalEscape(athlete.id) + '" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">';
+                html += '<div class="p-3 bg-slate-50 border-b border-slate-200"><button type="button" onclick="backToAthleteRoster()" class="text-sm font-bold text-teal-700 hover:text-teal-900">← Back to Athlete Roster</button></div>';
+                const avatar = athlete.avatar_display_url
+                    ? '<img src="' + portalEscape(athlete.avatar_display_url) + '" alt="Athlete photo" class="w-24 h-24 rounded-full object-cover border-4 border-teal-300 bg-white">'
+                    : '<div class="w-24 h-24 rounded-full border-4 border-teal-300 bg-slate-700 flex items-center justify-center text-3xl font-black text-teal-200">' + portalEscape((athlete.full_name || '?').split(' ').map(x => x[0]).slice(0,2).join('')) + '</div>';
+                html += '<div class="bg-gradient-to-r from-slate-950 via-teal-950 to-slate-900 text-white p-5"><div class="flex flex-wrap items-center gap-4">' + avatar + '<div><div class="text-xs uppercase tracking-widest text-teal-300 font-bold">Tornadoes athlete</div><h3 class="text-2xl font-extrabold mt-1">' + portalEscape(athlete.full_name) + '</h3><p class="text-sm text-slate-300 mt-1">' + portalEscape(athlete.category) + ' · Season 2026–2027</p></div></div></div>';
+                           html += '<div class="athlete-tab-panel" data-athlete-panel="overview">';
+                    html += renderAthletePersonalEditor(athlete, isStaff);
+                                    html += '</div>';
+                                    html += '<div class="flex flex-wrap gap-2 p-3 border-b border-slate-200 bg-white">';
+                html += '<button type="button" class="athlete-tab-btn active bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-bold" data-tab="overview">Overview</button>';
+                html += '<button type="button" class="athlete-tab-btn bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold" data-tab="gym">Gym Results</button>';
+                html += '<button type="button" class="athlete-tab-btn bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold" data-tab="pool">Pool Results</button>';
+                html += '<button type="button" class="athlete-tab-btn bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold" data-tab="history">Assessments History</button>';
+                html += '<button type="button" class="athlete-tab-btn bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold" data-tab="development">Development Plan</button>';
+                html += '</div>';
+                                    html += '<div class="athlete-tab-panel hidden" data-athlete-panel="gym"><h4 class="p-5 font-bold text-slate-800">Gym Results</h4><div class="gym-results-content"></div></div>';
+                html += '<div class="athlete-tab-panel hidden" data-athlete-panel="pool"><h4 class="p-5 font-bold text-slate-800">Pool Results</h4><div class="pool-results-content"></div></div>';
+                html += '<div class="athlete-tab-panel hidden" data-athlete-panel="development"><h4 class="p-5 font-bold text-slate-800">Development Plan</h4><div class="development-plan-content"></div></div>';
+                                    html += '<div class="athlete-tab-panel hidden" data-athlete-panel="history">';
                 if (!assessmentResult.data || assessmentResult.data.length === 0) {
                     html += '<div class="p-5 text-sm text-slate-500">No published assessments are available yet.</div>';
                 } else {
                     for (const assessment of assessmentResult.data) {
+                        let assessmentCardHtml = '';
                         const itemsResult = await client.from('artistic_assessment_items')
-                            .select('test_name,score,max_score,result_status')
+                            .select('id,test_name,score,max_score,result_status')
                             .eq('assessment_id', assessment.id);
                         if (itemsResult.error) throw itemsResult.error;
                         const preferred = assessment.assessment_area === 'Gym' ? gymOrder : poolOrder;
                         const items = (itemsResult.data || []).slice().sort(function(a,b) {
                             return preferred.indexOf(a.test_name) - preferred.indexOf(b.test_name);
                         });
+                        if (assessment.assessment_area === 'Gym' && !latestGymChartItems) latestGymChartItems = items;
+                        if (assessment.assessment_area === 'Pool' && !latestPoolChartItems) latestPoolChartItems = items;
                         const pct = assessment.score_percent == null ? 'Partial assessment' : Number(assessment.score_percent).toFixed(1) + '%';
-                        html += '<div class="p-5 border-t border-slate-200">';
-                        html += '<div class="flex flex-wrap items-start justify-between gap-3"><div><div class="text-xs uppercase tracking-wider font-bold text-teal-700">' + portalEscape(assessment.assessment_area) + '</div><h4 class="font-extrabold text-slate-900 mt-1">' + portalEscape(assessment.assessment_name) + '</h4><p class="text-xs text-slate-500 mt-1">' + portalEscape(assessment.assessment_date) + (assessment.record_status === 'partial' ? ' · Partial record' : '') + '</p></div>';
-                        html += '<div class="text-right"><div class="text-2xl font-black text-teal-700">' + portalEscape(pct) + '</div>';
-                        if (assessment.result_score != null && assessment.max_score != null) html += '<div class="text-xs text-slate-500">' + portalEscape(assessment.result_score) + ' / ' + portalEscape(assessment.max_score) + '</div>';
-                        if (assessment.percentile != null) html += '<div class="text-[11px] text-slate-500 mt-1">ASAJ category percentile: ' + portalEscape(Number(assessment.percentile).toFixed(1)) + '%</div>';
-                        html += '</div></div>';
-                        html += '<div class="mt-4 grid gap-2 sm:grid-cols-2">';
+                        assessmentCardHtml += '<div class="p-5 border-t border-slate-200">';
+                        assessmentCardHtml += '<div class="flex flex-wrap items-start justify-between gap-3"><div><div class="text-xs uppercase tracking-wider font-bold text-teal-700">' + portalEscape(assessment.assessment_area) + '</div><h4 class="font-extrabold text-slate-900 mt-1">' + portalEscape(assessment.assessment_name) + '</h4><p class="text-xs text-slate-500 mt-1">' + portalEscape(assessment.assessment_date) + (assessment.record_status === 'partial' ? ' · Partial record' : '') + '</p></div>';
+                        assessmentCardHtml += '<div class="text-right"><div class="text-2xl font-black text-teal-700">' + portalEscape(pct) + '</div>';
+                        if (assessment.result_score != null && assessment.max_score != null) assessmentCardHtml += '<div class="text-xs text-slate-500">' + portalEscape(assessment.result_score) + ' / ' + portalEscape(assessment.max_score) + '</div>';
+                        if (assessment.percentile != null) assessmentCardHtml += '<div class="text-[11px] text-slate-500 mt-1">ASAJ category percentile: ' + portalEscape(Number(assessment.percentile).toFixed(1)) + '%</div>';
+                        assessmentCardHtml += '</div></div>';
+                        if (isStaff) assessmentCardHtml += '<form class="mt-4" onsubmit="event.preventDefault(); saveAssessmentScores(this)"><input type="hidden" name="assessment-id" value="' + portalEscape(assessment.id) + '"><div class="grid gap-2 sm:grid-cols-2">';
+                        else assessmentCardHtml += '<div class="mt-4 grid gap-2 sm:grid-cols-2">';
                         for (const item of items) {
                             const scoreText = item.result_status === 'unrecorded' || item.score == null ? 'Not recorded' : (Number(item.score) + ' / ' + Number(item.max_score));
-                            html += '<div class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2"><span class="text-xs font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="text-xs font-extrabold text-slate-900 whitespace-nowrap">' + portalEscape(scoreText) + '</span></div>';
+                            if (isStaff) {
+                                assessmentCardHtml += '<label class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2"><span class="text-xs font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="flex items-center gap-1"><input type="number" min="0" max="' + portalEscape(item.max_score) + '" step="0.5" name="score-' + portalEscape(item.id) + '" value="' + (item.score == null ? '' : portalEscape(item.score)) + '" placeholder="—" class="w-16 rounded border border-slate-300 px-2 py-1 text-right text-xs font-bold"><span class="text-xs text-slate-500">/ ' + portalEscape(item.max_score) + '</span></span></label>';
+                            } else {
+                                assessmentCardHtml += '<div class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2"><span class="text-xs font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="text-xs font-extrabold text-slate-900 whitespace-nowrap">' + portalEscape(scoreText) + '</span></div>';
+                            }
                         }
-                        html += '</div></div>';
+                        assessmentCardHtml += '</div>';
+                        if (isStaff) assessmentCardHtml += '<div class="mt-3 flex items-center gap-3"><button type="submit" class="rounded-lg bg-teal-700 px-4 py-2 text-sm font-bold text-white">Save ' + portalEscape(assessment.assessment_area) + ' scores</button><span class="text-xs text-slate-500" data-score-save-status></span></div></form>';
+                        assessmentCardHtml += '</div>';
+                        html += assessmentCardHtml;
+                        if (assessment.assessment_area === 'Gym') gymHtml += assessmentCardHtml;
+                        if (assessment.assessment_area === 'Pool') poolHtml += assessmentCardHtml;
                     }
                 }
-                const participantResult = await client.from('artistic_competition_participants')
+                                    html += '</div>';
+const buildAssessmentChart = function(title, chartItems) {
+                    if (!chartItems || !chartItems.length) return '';
+                    let chart = '<div class="p-5 border-t border-slate-200"><h4 class="font-extrabold text-slate-900 mb-1">' + title + '</h4><p class="text-xs text-slate-500 mb-4">Latest recorded assessment · individual test scores</p><div class="space-y-3">';
+                    for (const item of chartItems) {
+                        const recorded = item.result_status !== 'unrecorded' && item.score != null && item.max_score != null;
+                        const score = recorded ? Number(item.score) : 0;
+                        const max = recorded ? Number(item.max_score) : 5;
+                        const width = recorded && max > 0 ? Math.max(0, Math.min(100, score / max * 100)) : 0;
+                        chart += '<div><div class="flex justify-between gap-3 text-xs mb-1"><span class="font-semibold text-slate-700">' + portalEscape(item.test_name) + '</span><span class="font-bold text-slate-800">' + (recorded ? portalEscape(score + ' / ' + max) : 'Not recorded') + '</span></div><div class="h-2.5 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full bg-teal-600" style="width:' + width + '%"></div></div></div>';
+                    }
+                    return chart + '</div></div>';
+                };
+                gymHtml += buildAssessmentChart('Gym performance chart', latestGymChartItems);
+                poolHtml += buildAssessmentChart('Pool performance chart', latestPoolChartItems);
+                html = html.replace('<div class="gym-results-content"></div>', '<div class="gym-results-content">' + (gymHtml || '<p class="p-5 text-sm text-slate-500">No Gym results recorded yet.</p>') + '</div>');
+                html = html.replace('<div class="pool-results-content"></div>', '<div class="pool-results-content">' + (poolHtml || '<p class="p-5 text-sm text-slate-500">No Pool results recorded yet.</p>') + '</div>');
+                const planResult = await client.from('artistic_athlete_development_plans')
+                    .select('pathway_title,pathway_description,coach_observations,gym_focus_areas,pool_focus_areas,training_objectives,coach_review')
+                    .eq('athlete_id', athlete.id)
+                    .maybeSingle();
+                if (planResult.error) throw planResult.error;
+                const plan = planResult.data || {};
+                const planText = function(value) { return portalEscape(value || ''); };
+                let developmentPlanHtml = '';
+                if (isStaff) {
+                    developmentPlanHtml = '<form class="p-5 space-y-3" onsubmit="event.preventDefault(); saveAthleteDevelopmentPlan(\'' + portalEscape(athlete.id) + '\',this)">' +
+                        '<label class="block text-xs font-bold text-slate-600">Pathway title<input name="pathway_title" value="' + planText(plan.pathway_title) + '" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal"></label>' +
+                        '<label class="block text-xs font-bold text-slate-600">Pathway description<textarea name="pathway_description" rows="2" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal">' + planText(plan.pathway_description) + '</textarea></label>' +
+                        '<label class="block text-xs font-bold text-slate-600">Coach observations<textarea name="coach_observations" rows="3" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal">' + planText(plan.coach_observations) + '</textarea></label>' +
+                        '<div class="grid gap-3 sm:grid-cols-2"><label class="block text-xs font-bold text-slate-600">Gym focus areas<textarea name="gym_focus_areas" rows="3" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal">' + planText(plan.gym_focus_areas) + '</textarea></label>' +
+                        '<label class="block text-xs font-bold text-slate-600">Pool focus areas<textarea name="pool_focus_areas" rows="3" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal">' + planText(plan.pool_focus_areas) + '</textarea></label></div>' +
+                        '<label class="block text-xs font-bold text-slate-600">Training objectives<textarea name="training_objectives" rows="6" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal">' + planText(plan.training_objectives) + '</textarea></label>' +
+                        '<label class="block text-xs font-bold text-slate-600">Coach review<textarea name="coach_review" rows="3" class="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm font-normal">' + planText(plan.coach_review) + '</textarea></label>' +
+                        '<div class="flex items-center gap-3"><button type="submit" class="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-bold text-white">Save Development Plan</button><span class="text-xs text-slate-500" data-plan-save-status></span></div></form>';
+                } else if (plan.pathway_title || plan.coach_observations || plan.training_objectives) {
+                    const bullets = function(value) { return (value || '').split(/\n|;/).map(x => x.trim()).filter(Boolean).map(x => '<li>' + portalEscape(x) + '</li>').join(''); };
+                    developmentPlanHtml = '<div class="p-5 space-y-5">' +
+                        (plan.pathway_title ? '<div class="rounded-xl bg-teal-50 border border-teal-100 p-4"><div class="text-xs uppercase tracking-wider font-bold text-teal-700">Athlete pathway</div><h4 class="font-extrabold text-slate-900 mt-1">' + planText(plan.pathway_title) + '</h4><p class="text-sm text-slate-700 mt-2">' + planText(plan.pathway_description) + '</p></div>' : '') +
+                        (plan.coach_observations ? '<div><h4 class="font-extrabold text-slate-900 mb-2">Coach observations</h4><p class="text-sm text-slate-600 whitespace-pre-line">' + planText(plan.coach_observations) + '</p></div>' : '') +
+                        '<div class="grid gap-3 sm:grid-cols-2">' +
+                        (plan.gym_focus_areas ? '<div class="rounded-xl border border-slate-200 p-4"><h5 class="font-bold text-slate-800">Gym focus areas</h5><ul class="list-disc pl-5 mt-2 text-sm text-slate-600 space-y-1">' + bullets(plan.gym_focus_areas) + '</ul></div>' : '') +
+                        (plan.pool_focus_areas ? '<div class="rounded-xl border border-slate-200 p-4"><h5 class="font-bold text-slate-800">Pool focus areas</h5><ul class="list-disc pl-5 mt-2 text-sm text-slate-600 space-y-1">' + bullets(plan.pool_focus_areas) + '</ul></div>' : '') + '</div>' +
+                        (plan.training_objectives ? '<div><h4 class="font-extrabold text-slate-900 mb-2">Training objectives</h4><ul class="list-disc pl-5 text-sm text-slate-600 space-y-1">' + bullets(plan.training_objectives) + '</ul></div>' : '') +
+                        (plan.coach_review ? '<div class="rounded-xl bg-slate-50 border border-slate-200 p-4"><h4 class="font-bold text-slate-800">Coach review</h4><p class="text-sm text-slate-500 mt-1 whitespace-pre-line">' + planText(plan.coach_review) + '</p></div>' : '') + '</div>';
+                } else {
+                    developmentPlanHtml = '<div class="p-5 text-sm text-slate-500">The coach has not added an individual development plan for this athlete yet.</div>';
+                }
+                html = html.replace('<div class="development-plan-content"></div>', '<div class="development-plan-content">' + developmentPlanHtml + '</div>');
+                    const participantResult = await client.from('artistic_competition_participants')
                     .select('event_id')
                     .eq('athlete_id', athlete.id);
                 if (participantResult.error) throw participantResult.error;
@@ -3252,13 +3544,20 @@ body { overflow-x: hidden; }
                 }
                 html += '</section>';
             }
-            container.innerHTML = html;
+            rosterHtml += '</div></div>';
+            container.innerHTML = rosterHtml + '<div id="athlete-profile-details" class="hidden space-y-5">' + html + '</div>';
+                            container.querySelectorAll('.athlete-tab-btn').forEach(function(button) {
+                button.addEventListener('click', function() {
+                    switchAthleteProfileTab(button, button.getAttribute('data-tab'));
+                });
+            });
             if (isStaff) {
                 portalActiveAthletes = profileResult.data;
                 document.getElementById('training-attendance-panel').classList.remove('hidden');
                 document.getElementById('competition-admin-panel').classList.remove('hidden');
                 document.getElementById('competition-athlete-picker').innerHTML = profileResult.data.map(function(a) {
-                    return '<label class="flex items-center gap-2 rounded-lg bg-slate-50 p-2"><input type="checkbox" name="competition-athlete" value="' + portalEscape(a.id) + '" class="rounded border-slate-300"><span>' + portalEscape(a.full_name) + ' <span class="text-slate-400">(' + portalEscape(a.category) + ')</span></span></label>';
+                    const competitionCategory = getAthleteCompetitionCategory(a);
+                    return '<label class="flex items-center gap-2 rounded-lg bg-slate-50 p-2"><input type="checkbox" name="competition-athlete" value="' + portalEscape(a.id) + '" class="rounded border-slate-300"><span>' + portalEscape(a.full_name) + ' <span class="text-slate-400">(Competition: ' + portalEscape(competitionCategory) + ')</span></span></label>';
                 }).join('');
             } else {
                 portalActiveAthletes = profileResult.data;
@@ -3271,7 +3570,10 @@ body { overflow-x: hidden; }
         function renderTrainingAttendanceRoster() {
             const category = document.getElementById('training-category').value;
             const roster = document.getElementById('training-attendance-roster');
-            const athletes = portalActiveAthletes.filter(function(a) { return a.category === category; });
+            const selectedCategory = normalizeAthleteCategory(category);
+            const athletes = portalActiveAthletes.filter(function(a) {
+                return normalizeAthleteCategory(getAthleteCompetitionCategory(a)) === selectedCategory;
+            });
             document.getElementById('training-roster-count').textContent = athletes.length ? athletes.length + ' athletes' : '';
             if (!category) { roster.innerHTML = 'Select a category to load its athletes.'; return; }
             if (!athletes.length) { roster.innerHTML = '<div class="p-3 text-amber-700">No active athletes found in this category.</div>'; return; }
@@ -3347,11 +3649,24 @@ body { overflow-x: hidden; }
             const selectedAthletes = Array.from(document.querySelectorAll('input[name="competition-athlete"]:checked')).map(function(input) { return input.value; });
             const status = document.getElementById('competition-save-status');
             if (!selectedAthletes.length) { status.textContent = 'Select at least one athlete.'; return; }
+            const selectedRecords = portalActiveAthletes.filter(function(a) { return selectedAthletes.includes(a.id); });
+            const selectedCategories = Array.from(new Set(selectedRecords.map(getAthleteCompetitionCategory)));
+            if (selectedCategories.length !== 1) {
+                status.textContent = 'Please save separate competition results for each category. Selected athletes belong to: ' + selectedCategories.join(', ') + '.';
+                return;
+            }
+            const competitionCategory = selectedCategories[0];
+            const categoryInput = document.getElementById('competition-category');
+            if (categoryInput.value.trim() && normalizeAthleteCategory(categoryInput.value) !== normalizeAthleteCategory(competitionCategory)) {
+                status.textContent = 'The selected athletes are in ' + competitionCategory + '. Please correct the competition category before saving.';
+                return;
+            }
+            categoryInput.value = competitionCategory;
             const payload = {
                 competition_name: document.getElementById('competition-name').value.trim(),
                 competition_date: document.getElementById('competition-date').value || null,
                 modality: document.getElementById('competition-modality').value,
-                category: document.getElementById('competition-category').value.trim() || null,
+                category: competitionCategory,
                 event_name: document.getElementById('competition-event-name').value.trim() || null,
                 official_score: document.getElementById('competition-score').value === '' ? null : Number(document.getElementById('competition-score').value),
                 placement: document.getElementById('competition-placement').value.trim() || null,
@@ -3581,6 +3896,19 @@ body { overflow-x: hidden; }
 
         window.onload = function() {
             changeEvaluationCategory('supernovices');
+
+            // Initialize Supabase Auth on every page load so magic-link callbacks
+            // are processed immediately, even when the athlete profile tab is not
+            // the first tab opened after the email redirect.
+            initAthletePortal();
+
+            // Surface Supabase callback errors instead of silently returning to login.
+            const authParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+            const authError = authParams.get('error_description') || authParams.get('error');
+            if (authError) {
+                portalShowLogin();
+                portalStatus(authError, true);
+            }
         };
     </script>
 </body>
