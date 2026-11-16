@@ -3348,6 +3348,139 @@ body { overflow-x: hidden; }
             }
         }
 
+
+        async function downloadAthleteReport(athleteId) {
+            const client = getTornadoesPortalClient();
+            const reportWindow = window.open('', '_blank');
+            if (!reportWindow) {
+                alert('Please allow pop-ups for this site so the athlete report can open for printing.');
+                return;
+            }
+            reportWindow.document.write('<!doctype html><html><head><title>Preparing athlete report…</title></head><body style="font-family:Arial,sans-serif;padding:24px">Preparing athlete report…</body></html>');
+            try {
+                const userResult = await client.auth.getUser();
+                if (userResult.error || !userResult.data.user) throw userResult.error || new Error('Please sign in again.');
+                const staffResult = await client.from('artistic_portal_staff')
+                    .select('role').eq('user_id', userResult.data.user.id).eq('is_active', true).maybeSingle();
+                if (staffResult.error) throw staffResult.error;
+                const isStaff = !!staffResult.data;
+                const athlete = (portalActiveAthletes || []).find(function(item) { return item.id === athleteId; });
+                if (!athlete) throw new Error('Athlete profile not found or not available to this account.');
+
+                const attendanceResult = await client.from('artistic_training_attendance')
+                    .select('session_id,attendance_status,arrival_time,departure_time,notes')
+                    .eq('athlete_id', athleteId);
+                if (attendanceResult.error) throw attendanceResult.error;
+                const attendanceRows = attendanceResult.data || [];
+                const sessionIds = Array.from(new Set(attendanceRows.map(function(row) { return row.session_id; }).filter(Boolean)));
+                let sessions = [];
+                if (sessionIds.length) {
+                    const sessionsResult = await client.from('artistic_training_sessions')
+                        .select('id,session_date,session_name,category,scheduled_start,scheduled_end,location,coach_name')
+                        .in('id', sessionIds);
+                    if (sessionsResult.error) throw sessionsResult.error;
+                    sessions = sessionsResult.data || [];
+                }
+                const sessionMap = new Map(sessions.map(function(session) { return [session.id, session]; }));
+                const attendance = attendanceRows.map(function(row) {
+                    const session = sessionMap.get(row.session_id) || {};
+                    const present = String(row.attendance_status || '').toLowerCase() === 'present';
+                    const toMinutes = function(value) {
+                        if (!value) return null;
+                        const parts = String(value).slice(0,5).split(':').map(Number);
+                        return parts.length === 2 && parts.every(Number.isFinite) ? parts[0] * 60 + parts[1] : null;
+                    };
+                    let duration = null;
+                    const start = toMinutes(row.arrival_time), end = toMinutes(row.departure_time);
+                    if (present && start !== null && end !== null) duration = (end >= start ? end - start : end + 1440 - start);
+                    return { ...row, session, duration };
+                }).sort(function(a,b) { return String(a.session.session_date || '').localeCompare(String(b.session.session_date || '')); });
+                const presentCount = attendance.filter(function(row) { return String(row.attendance_status || '').toLowerCase() === 'present'; }).length;
+                const absentCount = attendance.filter(function(row) { return String(row.attendance_status || '').toLowerCase() === 'absent'; }).length;
+                const attendanceRate = attendance.length ? (presentCount / attendance.length * 100) : null;
+                const totalMinutes = attendance.reduce(function(sum,row) { return sum + (row.duration || 0); }, 0);
+
+                let assessmentQuery = client.from('artistic_assessments')
+                    .select('id,assessment_name,assessment_date,assessment_area,result_score,max_score,score_percent,percentile,record_status,is_published')
+                    .eq('athlete_id', athleteId);
+                if (!isStaff) assessmentQuery = assessmentQuery.eq('is_published', true);
+                const assessmentResult = await assessmentQuery.order('assessment_date', { ascending: false });
+                if (assessmentResult.error) throw assessmentResult.error;
+                const assessments = [];
+                for (const assessment of (assessmentResult.data || [])) {
+                    const itemResult = await client.from('artistic_assessment_items')
+                        .select('test_name,domain,score,max_score,result_status,notes')
+                        .eq('assessment_id', assessment.id);
+                    if (itemResult.error) throw itemResult.error;
+                    assessments.push({ ...assessment, items: itemResult.data || [] });
+                }
+
+                const planResult = await client.from('artistic_athlete_development_plans')
+                    .select('pathway_title,pathway_description,coach_observations,gym_focus_areas,pool_focus_areas,training_objectives,coach_review')
+                    .eq('athlete_id', athleteId).maybeSingle();
+                if (planResult.error) throw planResult.error;
+                const plan = planResult.data || {};
+
+                const participantResult = await client.from('artistic_competition_participants')
+                    .select('event_id').eq('athlete_id', athleteId);
+                if (participantResult.error) throw participantResult.error;
+                const eventIds = (participantResult.data || []).map(function(row) { return row.event_id; }).filter(Boolean);
+                let competitions = [];
+                if (eventIds.length) {
+                    let eventQuery = client.from('artistic_competition_events')
+                        .select('competition_name,competition_date,modality,category,event_name,official_score,placement,medal,is_published')
+                        .in('id', eventIds).order('competition_date', { ascending: false });
+                    if (!isStaff) eventQuery = eventQuery.eq('is_published', true);
+                    const eventResult = await eventQuery;
+                    if (eventResult.error) throw eventResult.error;
+                    competitions = eventResult.data || [];
+                }
+
+                const esc = function(value) {
+                    return String(value == null || value === '' ? '—' : value).replace(/[&<>"']/g, function(ch) {
+                        return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]);
+                    });
+                };
+                const lines = function(value) {
+                    return String(value || '').split(/\r?\n|;/).map(function(x) { return x.trim(); }).filter(Boolean);
+                };
+                const list = function(value) {
+                    const items = lines(value);
+                    return items.length ? '<ul>' + items.map(function(x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '<p class="muted">Not recorded</p>';
+                };
+                const durationText = function(minutes) {
+                    return Math.floor(minutes / 60) + 'h ' + (minutes % 60) + 'm';
+                };
+                const attendanceHtml = attendance.length ? attendance.map(function(row) {
+                    const session = row.session || {};
+                    return '<tr><td>' + esc(session.session_date) + '</td><td>' + esc(session.session_name) + '</td><td>' + esc(session.category) + '</td><td>' + esc(row.attendance_status) + '</td><td>' + esc(row.arrival_time ? String(row.arrival_time).slice(0,5) : '—') + '</td><td>' + esc(row.departure_time ? String(row.departure_time).slice(0,5) : '—') + '</td><td>' + (row.duration == null ? '—' : durationText(row.duration)) + '</td><td>' + esc(session.location) + '</td></tr>';
+                }).join('') : '<tr><td colspan="8">No attendance records available.</td></tr>';
+                const assessmentHtml = assessments.length ? assessments.map(function(assessment) {
+                    const itemRows = assessment.items.map(function(item) {
+                        const score = item.result_status === 'unrecorded' || item.score == null ? 'Not recorded' : esc(item.score) + ' / ' + esc(item.max_score);
+                        return '<tr><td>' + esc(item.test_name) + '</td><td>' + esc(item.domain) + '</td><td>' + score + '</td><td>' + esc(item.notes) + '</td></tr>';
+                    }).join('');
+                    return '<section class="card"><h3>' + esc(assessment.assessment_name) + ' — ' + esc(assessment.assessment_area) + '</h3><p class="muted">' + esc(assessment.assessment_date) + ' · ' + (assessment.score_percent == null ? 'Partial assessment' : esc(Number(assessment.score_percent).toFixed(1)) + '%') + (assessment.result_score != null ? ' · ' + esc(assessment.result_score) + ' / ' + esc(assessment.max_score) : '') + (assessment.percentile != null ? ' · ASAJ percentile: ' + esc(Number(assessment.percentile).toFixed(1)) + '%' : '') + '</p><table><thead><tr><th>Test</th><th>Domain</th><th>Score</th><th>Notes</th></tr></thead><tbody>' + (itemRows || '<tr><td colspan="4">No item scores recorded.</td></tr>') + '</tbody></table></section>';
+                }).join('') : '<p class="muted">No published assessment records available.</p>';
+                const competitionHtml = competitions.length ? '<table><thead><tr><th>Competition</th><th>Date</th><th>Modality / Event</th><th>Score</th><th>Placement</th><th>Medal</th></tr></thead><tbody>' + competitions.map(function(event) {
+                    return '<tr><td>' + esc(event.competition_name) + '</td><td>' + esc(event.competition_date) + '</td><td>' + esc([event.modality,event.category,event.event_name].filter(Boolean).join(' · ')) + '</td><td>' + esc(event.official_score) + '</td><td>' + esc(event.placement) + '</td><td>' + esc(event.medal) + '</td></tr>';
+                }).join('') + '</tbody></table>' : '<p class="muted">No published competition results available.</p>';
+                const reportHtml = '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(athlete.full_name) + ' — Athlete Report</title><style>' +
+                    'body{font-family:Arial,sans-serif;color:#172033;margin:28px;font-size:12px;line-height:1.45}h1{font-size:24px;margin:0}h2{font-size:17px;margin:24px 0 8px;color:#0f766e;border-bottom:2px solid #0f766e;padding-bottom:5px}h3{font-size:14px;margin:8px 0}.brand{color:#0f766e;font-weight:bold;letter-spacing:2px;text-transform:uppercase;font-size:10px}.muted{color:#64748b}.meta{margin:8px 0 16px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.stat{border:1px solid #cbd5e1;padding:10px;border-radius:8px}.stat strong{display:block;font-size:18px;color:#0f766e}table{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:10px}th,td{border:1px solid #cbd5e1;padding:6px;text-align:left;vertical-align:top}th{background:#f1f5f9}ul{margin:6px 0;padding-left:20px}.card{border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin:10px 0;break-inside:avoid}.columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.footer{margin-top:28px;border-top:1px solid #cbd5e1;padding-top:8px;color:#64748b;font-size:10px}@media print{body{margin:14mm}.no-print{display:none!important}h2{break-after:avoid}table{break-inside:auto}tr{break-inside:avoid}}' +
+                    '</style></head><body><div class="brand">Tornadoes Artistic Swimming</div><h1>Athlete Development Report</h1><div class="meta"><strong>' + esc(athlete.full_name) + '</strong> · ' + esc(athlete.category) + '<br>Date of birth: ' + esc(athlete.date_of_birth) + ' · School: ' + esc(athlete.school_name) + '<br>Generated: ' + esc(new Date().toLocaleDateString()) + '</div>' +
+                    '<h2>Training Attendance & Hours</h2><div class="stats"><div class="stat"><strong>' + attendance.length + '</strong>Total sessions</div><div class="stat"><strong>' + presentCount + '</strong>Present</div><div class="stat"><strong>' + absentCount + '</strong>Absent</div><div class="stat"><strong>' + (attendanceRate == null ? '—' : attendanceRate.toFixed(1) + '%') + '</strong>Attendance rate</div></div><p><strong>Recorded training time:</strong> ' + durationText(totalMinutes) + ' (' + (totalMinutes / 60).toFixed(2) + ' hours). Calculated only from recorded arrival and departure times.</p><table><thead><tr><th>Date</th><th>Session</th><th>Category</th><th>Status</th><th>Arrival</th><th>Departure</th><th>Recorded time</th><th>Location</th></tr></thead><tbody>' + attendanceHtml + '</tbody></table>' +
+                    '<h2>Assessment Results</h2>' + assessmentHtml +
+                    '<h2>Development Plan</h2><section class="card"><h3>' + esc(plan.pathway_title) + '</h3><p>' + esc(plan.pathway_description) + '</p><div class="columns"><div><h3>Coach Observations</h3><p>' + esc(plan.coach_observations) + '</p><h3>Gym Focus Areas</h3>' + list(plan.gym_focus_areas) + '</div><div><h3>Pool Focus Areas</h3>' + list(plan.pool_focus_areas) + '</div></div><h3>Training Objectives</h3>' + list(plan.training_objectives) + '<h3>Coach Review</h3><p>' + esc(plan.coach_review) + '</p></section>' +
+                    '<h2>Competition Results</h2>' + competitionHtml +
+                    '<div class="footer">Tornadoes Artistic Swimming · Confidential athlete development record · Share only with the athlete’s authorised parent/guardian.</div><p class="no-print"><button onclick="window.print()">Print / Save as PDF</button></p><script>window.onload=function(){setTimeout(function(){window.print()},400)};<\/script></body></html>';
+                reportWindow.document.open();
+                reportWindow.document.write(reportHtml);
+                reportWindow.document.close();
+            } catch (error) {
+                reportWindow.document.body.innerHTML = '<p style="font-family:Arial;color:#b91c1c;padding:24px">Unable to generate report: ' + String(error && error.message || error).replace(/[<>&"]/g, '') + '</p>';
+            }
+        }
+
         async function loadAthletePortal(session) {
             const client = getTornadoesPortalClient();
             document.getElementById('athlete-portal-login').classList.add('hidden');
@@ -3416,6 +3549,7 @@ body { overflow-x: hidden; }
                     ? '<img src="' + portalEscape(athlete.avatar_display_url) + '" alt="Athlete photo" class="w-24 h-24 rounded-full object-cover border-4 border-teal-300 bg-white">'
                     : '<div class="w-24 h-24 rounded-full border-4 border-teal-300 bg-slate-700 flex items-center justify-center text-3xl font-black text-teal-200">' + portalEscape((athlete.full_name || '?').split(' ').map(x => x[0]).slice(0,2).join('')) + '</div>';
                 html += '<div class="bg-gradient-to-r from-slate-950 via-teal-950 to-slate-900 text-white p-5"><div class="flex flex-wrap items-center gap-4">' + avatar + '<div><div class="text-xs uppercase tracking-widest text-teal-300 font-bold">Tornadoes athlete</div><h3 class="text-2xl font-extrabold mt-1">' + portalEscape(athlete.full_name) + '</h3><p class="text-sm text-slate-300 mt-1">' + portalEscape(athlete.category) + ' · Season 2026–2027</p></div></div></div>';
+                html += '<div class="flex justify-end bg-slate-50 border-b border-slate-200 px-5 py-3"><button type="button" onclick="downloadAthleteReport(\'' + portalEscape(athlete.id) + '\')" class="rounded-lg bg-teal-700 hover:bg-teal-800 text-white px-4 py-2 text-sm font-bold"><i class="fas fa-file-pdf mr-2"></i>Download Athlete Report (PDF)</button></div>';
                            html += '<div class="athlete-tab-panel" data-athlete-panel="overview">';
                     html += renderAthletePersonalEditor(athlete, isStaff);
                                     html += '</div>';
