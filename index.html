@@ -3539,6 +3539,43 @@ body { overflow-x: hidden; }
                 const assessmentResult = await assessmentQuery.order('assessment_date', { ascending: false });
                 if (assessmentResult.error) throw assessmentResult.error;
                     
+                const profileAttendanceResult = await client.from('artistic_training_attendance')
+                    .select('session_id,attendance_status,arrival_time,departure_time,notes')
+                    .eq('athlete_id', athlete.id);
+                if (profileAttendanceResult.error) throw profileAttendanceResult.error;
+                const profileAttendanceRows = profileAttendanceResult.data || [];
+                const profileSessionIds = Array.from(new Set(profileAttendanceRows.map(function(row) { return row.session_id; }).filter(Boolean)));
+                let profileSessions = [];
+                if (profileSessionIds.length) {
+                    const profileSessionsResult = await client.from('artistic_training_sessions')
+                        .select('id,session_date,session_name,category,location,coach_name')
+                        .in('id', profileSessionIds);
+                    if (profileSessionsResult.error) throw profileSessionsResult.error;
+                    profileSessions = profileSessionsResult.data || [];
+                }
+                const profileSessionMap = new Map(profileSessions.map(function(session) { return [session.id, session]; }));
+                const profileAttendance = profileAttendanceRows.map(function(row) {
+                    const session = profileSessionMap.get(row.session_id) || {};
+                    const toMinutes = function(value) {
+                        if (!value) return null;
+                        const parts = String(value).slice(0,5).split(':').map(Number);
+                        return parts.length === 2 && parts.every(Number.isFinite) ? parts[0] * 60 + parts[1] : null;
+                    };
+                    const start = toMinutes(row.arrival_time), end = toMinutes(row.departure_time);
+                    const present = String(row.attendance_status || '').toLowerCase() === 'present';
+                    const duration = present && start !== null && end !== null ? (end >= start ? end - start : end + 1440 - start) : null;
+                    return { ...row, session, duration };
+                }).sort(function(a,b) { return String(b.session.session_date || '').localeCompare(String(a.session.session_date || '')); });
+                const profilePresent = profileAttendance.filter(function(row) { return String(row.attendance_status || '').toLowerCase() === 'present'; }).length;
+                const profileAbsent = profileAttendance.filter(function(row) { return String(row.attendance_status || '').toLowerCase() === 'absent'; }).length;
+                const profileTotalMinutes = profileAttendance.reduce(function(sum,row) { return sum + (row.duration || 0); }, 0);
+                const profileAttendanceRate = profileAttendance.length ? (profilePresent / profileAttendance.length * 100) : null;
+                const profileDurationText = function(minutes) { return Math.floor(minutes / 60) + 'h ' + (minutes % 60) + 'm'; };
+                const profileAttendanceRowsHtml = profileAttendance.length ? profileAttendance.map(function(row) {
+                    const session = row.session || {};
+                    return '<tr class="border-t border-slate-200"><td class="p-3 whitespace-nowrap">' + portalEscape(session.session_date || '—') + '</td><td class="p-3">' + portalEscape(session.session_name || 'Training') + '</td><td class="p-3">' + portalEscape(session.category || athlete.category || '—') + '</td><td class="p-3 font-bold ' + (String(row.attendance_status || '').toLowerCase() === 'present' ? 'text-emerald-700' : 'text-rose-700') + '">' + portalEscape(row.attendance_status || '—') + '</td><td class="p-3 whitespace-nowrap">' + portalEscape(row.arrival_time ? String(row.arrival_time).slice(0,5) : '—') + '</td><td class="p-3 whitespace-nowrap">' + portalEscape(row.departure_time ? String(row.departure_time).slice(0,5) : '—') + '</td><td class="p-3 whitespace-nowrap">' + (row.duration == null ? '—' : profileDurationText(row.duration)) + '</td><td class="p-3">' + portalEscape(session.location || '—') + '</td></tr>';
+                }).join('') : '<tr><td colspan="8" class="p-5 text-center text-slate-500">No attendance records have been saved for this athlete yet.</td></tr>';
+                const attendancePanelHtml = '<div class="p-5 space-y-5"><div><h4 class="font-extrabold text-slate-900">Training Attendance &amp; Hours</h4><p class="text-sm text-slate-500 mt-1">Attendance history and recorded training time.</p></div><div class="grid grid-cols-2 lg:grid-cols-4 gap-3"><div class="rounded-xl border border-slate-200 p-4"><div class="text-2xl font-black text-slate-900">' + profileAttendance.length + '</div><div class="text-xs text-slate-500">Total sessions</div></div><div class="rounded-xl border border-slate-200 p-4"><div class="text-2xl font-black text-emerald-700">' + profilePresent + '</div><div class="text-xs text-slate-500">Present</div></div><div class="rounded-xl border border-slate-200 p-4"><div class="text-2xl font-black text-rose-700">' + profileAbsent + '</div><div class="text-xs text-slate-500">Absent</div></div><div class="rounded-xl border border-slate-200 p-4"><div class="text-2xl font-black text-teal-700">' + (profileAttendanceRate == null ? '—' : profileAttendanceRate.toFixed(1) + '%') + '</div><div class="text-xs text-slate-500">Attendance rate</div></div></div><div class="rounded-xl bg-teal-50 border border-teal-100 p-4"><div class="text-xs text-teal-800 font-bold uppercase tracking-wide">Recorded training hours</div><div class="text-2xl font-black text-teal-900 mt-1">' + profileDurationText(profileTotalMinutes) + '</div><p class="text-xs text-teal-800 mt-1">Calculated only from sessions with both arrival and departure times recorded.</p></div><div class="overflow-x-auto rounded-xl border border-slate-200"><table class="min-w-[850px] w-full text-sm text-left"><thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="p-3">Date</th><th class="p-3">Session</th><th class="p-3">Category</th><th class="p-3">Status</th><th class="p-3">Arrival</th><th class="p-3">Departure</th><th class="p-3">Hours</th><th class="p-3">Location</th></tr></thead><tbody>' + profileAttendanceRowsHtml + '</tbody></table></div><p class="text-xs text-slate-500">This information is view-only in the athlete profile. Attendance can only be entered or changed by authorised staff.</p></div>';
                 let gymHtml = '';
                 let poolHtml = '';
                 let latestGymChartItems = null;
@@ -3559,10 +3596,12 @@ body { overflow-x: hidden; }
                 html += '<button type="button" class="athlete-tab-btn bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold" data-tab="pool">Pool Results</button>';
                 html += '<button type="button" class="athlete-tab-btn bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold" data-tab="history">Assessments History</button>';
                 html += '<button type="button" class="athlete-tab-btn bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold" data-tab="development">Development Plan</button>';
+                html += '<button type="button" class="athlete-tab-btn bg-slate-100 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold" data-tab="attendance">Attendance &amp; Hours</button>';
                 html += '</div>';
                                     html += '<div class="athlete-tab-panel hidden" data-athlete-panel="gym"><h4 class="p-5 font-bold text-slate-800">Gym Results</h4><div class="gym-results-content"></div></div>';
                 html += '<div class="athlete-tab-panel hidden" data-athlete-panel="pool"><h4 class="p-5 font-bold text-slate-800">Pool Results</h4><div class="pool-results-content"></div></div>';
                 html += '<div class="athlete-tab-panel hidden" data-athlete-panel="development"><h4 class="p-5 font-bold text-slate-800">Development Plan</h4><div class="development-plan-content"></div></div>';
+                html += '<div class="athlete-tab-panel hidden" data-athlete-panel="attendance">' + attendancePanelHtml + '</div>';
                                     html += '<div class="athlete-tab-panel hidden" data-athlete-panel="history">';
                 if (!assessmentResult.data || assessmentResult.data.length === 0) {
                     html += '<div class="p-5 text-sm text-slate-500">No published assessments are available yet.</div>';
