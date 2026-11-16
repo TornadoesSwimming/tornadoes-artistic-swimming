@@ -3107,10 +3107,11 @@ body { overflow-x: hidden; }
         }
 
         function athletePortalAuthRedirectUrl() {
-            const host = window.location.hostname.toLowerCase();
-            const isOfficialHub = host === 'tornadoes-artistic-swimming.vercel.app';
-            const isOfficialPreview = host.startsWith('tornadoes-artistic-swimming-') && host.endsWith('-tornadoessynchroresources.vercel.app');
-            return (isOfficialHub || isOfficialPreview) ? window.location.origin : 'https://tornadoes-artistic-swimming.vercel.app';
+            // Always return to the exact host where the athlete requested the
+            // magic link. This keeps Vercel preview/custom aliases on the same
+            // preview after Supabase authentication instead of sending them
+            // back to the production Hub.
+            return window.location.origin;
         }
 
         async function athletePortalSendAccessLink() {
