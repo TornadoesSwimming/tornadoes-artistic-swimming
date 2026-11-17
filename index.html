@@ -3648,7 +3648,7 @@ body { overflow-x: hidden; }
 
             for (const athlete of profileResult.data) {
                 rosterHtml += '<div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:border-teal-300 transition">';
-                rosterHtml += '<button type="button" onclick="showAthleteProfile(\\'' + portalEscape(athlete.id) + '\\')" class="w-full text-left"><div class="text-xs font-bold uppercase tracking-wider text-teal-700">Athlete Profile</div><div class="font-extrabold text-slate-900 mt-1">' + portalEscape(athlete.full_name) + '</div><div class="text-sm text-slate-500 mt-1">' + portalEscape(athlete.category) + '</div><div class="text-xs font-bold text-teal-700 mt-3">View Athlete Profile →</div></button>';
+                rosterHtml += '<button type="button" onclick="showAthleteProfile(\'' + portalEscape(athlete.id) + '\')" class="w-full text-left"><div class="text-xs font-bold uppercase tracking-wider text-teal-700">Athlete Profile</div><div class="font-extrabold text-slate-900 mt-1">' + portalEscape(athlete.full_name) + '</div><div class="text-sm text-slate-500 mt-1">' + portalEscape(athlete.category) + '</div><div class="text-xs font-bold text-teal-700 mt-3">View Athlete Profile →</div></button>';
                 if (isAdmin) {
                     const renderGuardianStatus = function(email, type) {
                         if (!email) return '';
@@ -3663,7 +3663,7 @@ body { overflow-x: hidden; }
                         if (link && link.access_status === 'pending') {
                             return '<div class="mt-2 w-full rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-bold text-amber-800 text-center">' + label + ' Access · Pending</div>'
                                 + '<button type="button" onclick="resendGuardianAccess(\'' + portalEscape(athlete.id) + '\', \''
-                                + type + '\\', this)" class="mt-1 w-full rounded-lg bg-white border border-amber-200 px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-100">Resend access email</button>';
+                                + type + '\', this)" class="mt-1 w-full rounded-lg bg-white border border-amber-200 px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-100">Resend access email</button>';
                         }
                         return '<button type="button" onclick="sendGuardianInvitation(\'' + portalEscape(athlete.id) + '\', \''
                             + type + '\', this)" class="mt-2 w-full rounded-lg '
