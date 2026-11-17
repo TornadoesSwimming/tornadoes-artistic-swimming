@@ -3472,7 +3472,7 @@ body { overflow-x: hidden; }
                     return Math.floor(minutes / 60) + 'h ' + (minutes % 60) + 'm';
                 };
                 const cleanLabel = function(value) {
-                    return String(value || '—').trim().replace(/\\s+/g, ' ').replace(/\\b\\w/g, function(ch) { return ch.toUpperCase(); });
+                    return String(value || '—').trim().replace(/\s+/g, ' ').replace(/\b\w/g, function(ch) { return ch.toUpperCase(); });
                 };
                 const attendanceHtml = attendance.length ? attendance.map(function(row) {
                     const session = row.session || {};
