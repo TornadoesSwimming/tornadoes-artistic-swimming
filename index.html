@@ -3158,6 +3158,27 @@ body { overflow-x: hidden; }
             }
         }
 
+        async function sendGuardianInvitation(athleteId, guardianType) {
+            const athlete = portalActiveAthletes.find(function(item) { return item.id === athleteId; });
+            if (!athlete) return portalStatus('Athlete profile not found.', true);
+            const email = guardianType === 'father' ? athlete.father_email : athlete.mother_email;
+            if (!email) return portalStatus('No registered email is available for this parent.', true);
+            const confirmed = window.confirm('Send a secure family invitation to ' + email + ' for ' + athlete.full_name + '?');
+            if (!confirmed) return;
+            try {
+                portalStatus('Sending invitation to ' + email + '…', false);
+                const client = getTornadoesPortalClient();
+                const result = await client.functions.invoke('artistic-guardian-invitations', {
+                    body: { action: 'invite', athlete_id: athleteId, email: email }
+                });
+                if (result.error) throw result.error;
+                if (result.data && result.data.error) throw new Error(result.data.error);
+                portalStatus('Invitation sent to ' + email + '. Access stays pending until the parent accepts and signs in.', false);
+            } catch (error) {
+                portalStatus(error.message || 'Unable to send the family invitation.', true);
+            }
+        }
+
         let portalActiveAthletes = [];
 
         // Competition/attendance category can differ from the athlete's training group.
@@ -3536,6 +3557,11 @@ body { overflow-x: hidden; }
 
         async function loadAthletePortal(session) {
             const client = getTornadoesPortalClient();
+            const activationResult = await client.functions.invoke('artistic-guardian-invitations', {
+                body: { action: 'activate_my_access' }
+            });
+            if (activationResult.error) throw activationResult.error;
+            if (activationResult.data && activationResult.data.error) throw new Error(activationResult.data.error);
             document.getElementById('athlete-portal-login').classList.add('hidden');
             document.getElementById('athlete-portal-dashboard').classList.remove('hidden');
             document.getElementById('athlete-portal-user').textContent = session.user.email || 'Authenticated account';
@@ -3588,6 +3614,10 @@ body { overflow-x: hidden; }
 
             for (const athlete of profileResult.data) {
                 rosterHtml += '<button type="button" onclick="showAthleteProfile(\'' + portalEscape(athlete.id) + '\')" class="text-left bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:border-teal-400 hover:shadow-md transition"><div class="text-xs font-bold uppercase tracking-wider text-teal-700">Athlete Profile</div><div class="font-extrabold text-slate-900 mt-1">' + portalEscape(athlete.full_name) + '</div><div class="text-sm text-slate-500 mt-1">' + portalEscape(athlete.category) + '</div><div class="text-xs font-bold text-teal-700 mt-3">View Athlete Profile →</div></button>';
+                if (isAdmin) {
+                    if (athlete.mother_email) rosterHtml += '<button type="button" onclick="sendGuardianInvitation(\\'' + portalEscape(athlete.id) + '\\', \\'mother\\')" class="mt-2 w-full rounded-lg bg-teal-50 border border-teal-200 px-3 py-2 text-xs font-bold text-teal-800 hover:bg-teal-100">Invite Mother · ' + portalEscape(athlete.mother_email) + '</button>';
+                    if (athlete.father_email) rosterHtml += '<button type="button" onclick="sendGuardianInvitation(\\'' + portalEscape(athlete.id) + '\\', \\'father\\')" class="mt-2 w-full rounded-lg bg-sky-50 border border-sky-200 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100">Invite Father · ' + portalEscape(athlete.father_email) + '</button>';
+                }
                 let assessmentQuery = client.from('artistic_assessments')
                     .select('id,assessment_name,assessment_date,assessment_area,result_score,max_score,score_percent,percentile,record_status,is_published')
                     .eq('athlete_id', athlete.id);
