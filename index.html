@@ -3421,7 +3421,7 @@ body { overflow-x: hidden; }
                 if (planResult.error) throw planResult.error;
                 const plan = planResult.data || {};
 
-                // Keep focus-area scores aligned with the latest published assessment data.
+                // Keep focus-area scores aligned with the latest assessment data.
                 const syncFocusScores = function(focusText, area) {
                     const latest = assessments.find(function(item) {
                         return String(item.assessment_area || '').toLowerCase() === area.toLowerCase();
@@ -3430,14 +3430,11 @@ body { overflow-x: hidden; }
                     let synced = focusText || '';
                     (latest.items || []).forEach(function(item) {
                         if (item.score == null || item.result_status === 'unrecorded') return;
-                        const escapedName = String(item.test_name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\                const plan = planResult.data || {};
-
-                const participantResult');
-                        if (!escapedName) return;
-                        const pattern = new RegExp('(^|[;\\n])([ \\t]*' + escapedName + '[ \\t]*[—–-][ \\t]*)\\d+(?:\\.\\d+)?[ \\t]*/[ \\t]*\\d+', 'gi');
-                        synced = synced.replace(pattern, function(match, prefix, label) {
-                            return prefix + label + String(item.score) + '/' + String(item.max_score == null ? 5 : item.max_score);
-                        });
+                        const testName = String(item.test_name || '').trim().toLowerCase();
+                        synced = synced.split(/\\r?\\n/).map(function(line) {
+                            if (!line.trim().toLowerCase().startsWith(testName + ' —')) return line;
+                            return line.replace(/—\\s*\\d+(?:\\.\\d+)?\\s*\\/\\s*\\d+/, '— ' + String(item.score) + '/' + String(item.max_score == null ? 5 : item.max_score));
+                        }).join('\\n');
                     });
                     return synced;
                 };
