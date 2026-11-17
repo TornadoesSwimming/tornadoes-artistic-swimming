@@ -3431,10 +3431,10 @@ body { overflow-x: hidden; }
                     (latest.items || []).forEach(function(item) {
                         if (item.score == null || item.result_status === 'unrecorded') return;
                         const testName = String(item.test_name || '').trim().toLowerCase();
-                        synced = synced.split(/\\r?\\n/).map(function(line) {
+                        synced = synced.split(/\r?\n/).map(function(line) {
                             if (!line.trim().toLowerCase().startsWith(testName + ' —')) return line;
-                            return line.replace(/—\\s*\\d+(?:\\.\\d+)?\\s*\\/\\s*\\d+/, '— ' + String(item.score) + '/' + String(item.max_score == null ? 5 : item.max_score));
-                        }).join('\\n');
+                            return line.replace(/—\s*\d+(?:\.\d+)?\s*\/\s*\d+/, '— ' + String(item.score) + '/' + String(item.max_score == null ? 5 : item.max_score));
+                        }).join('\n');
                     });
                     return synced;
                 };
