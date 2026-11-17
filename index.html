@@ -2678,7 +2678,7 @@ body { overflow-x: hidden; }
       <div>
         <div class="text-xs font-black uppercase tracking-widest text-teal-300">Tornadoes AI</div>
         <h2 class="text-2xl font-extrabold mt-1">Parent &amp; Athlete AI Assistant</h2>
-        <p class="text-sm text-slate-300 mt-2 max-w-2xl">Ask questions naturally. The assistant uses the Tornadoes Hub knowledge base and keeps the conversation context while you ask follow-up questions.</p>
+        <p class="text-sm text-slate-300 mt-2 max-w-2xl">Sign in through Athlete Profile to ask questions about your linked athlete. Tornadoes AI uses the Hub knowledge base and approved athlete records, while keeping conversation context for follow-up questions.</p>
       </div>
       <div id="ai-status" class="inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-xs font-bold self-start">
         <span class="w-2 h-2 rounded-full bg-amber-400"></span> Connecting…
@@ -2708,7 +2708,7 @@ body { overflow-x: hidden; }
       <button id="parent-send" class="bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-5 rounded-xl text-sm self-stretch" onclick="askParentAssistant()">Send</button>
     </div>
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-2">
-      <p class="text-[10px] text-slate-400">Ctrl/Cmd + Enter to send. The assistant is grounded in the Hub knowledge base and should not invent requirements.</p>
+      <p class="text-[10px] text-slate-400">Sign in through Athlete Profile first. Your linked athlete records are protected and the assistant only explains information you are authorized to see.</p>
       <button onclick="clearParentChat()" class="text-[10px] font-bold text-slate-500 hover:text-slate-800">Clear conversation</button>
     </div>
   </div>
@@ -4115,33 +4115,48 @@ const buildAssessmentChart = function(title, chartItems) {
             send.disabled = true;
             if (!presetQuery) input.value = '';
             appendChatMessage('user', question);
-            setParentAIStatus('Thinking…', 'amber');
+            setParentAIStatus('Checking secure sign-in…', 'amber');
 
             const thinking = document.createElement('div');
             thinking.id = 'ai-thinking';
             thinking.className = 'bg-white border border-slate-200 text-slate-500 p-3 rounded-2xl max-w-3xl text-sm';
-            thinking.textContent = 'Tornadoes AI is thinking…';
+            thinking.textContent = 'Tornadoes AI is preparing your answer…';
             document.getElementById('chat-history').appendChild(thinking);
 
-            parentChatMessages.push({ role: 'user', content: question });
             try {
+                const portalClient = getTornadoesPortalClient();
+                const sessionResult = await portalClient.auth.getSession();
+                if (sessionResult.error) throw sessionResult.error;
+                const session = sessionResult.data && sessionResult.data.session;
+                if (!session || !session.access_token) {
+                    throw Object.assign(new Error('Please sign in through the Athlete Profile section first. Your family access is verified before the assistant can answer.'), { code: 'AUTH_REQUIRED' });
+                }
+
+                parentChatMessages.push({ role: 'user', content: question });
+                setParentAIStatus('Thinking…', 'amber');
                 const response = await fetch(PARENT_AI_ENDPOINT, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + session.access_token
+                    },
                     body: JSON.stringify({ messages: parentChatMessages })
                 });
                 const data = await response.json().catch(() => ({}));
-                if (!response.ok) throw new Error(data.error || `Assistant request failed (${response.status})`);
+                if (!response.ok) throw Object.assign(new Error(data.error || 'Assistant request failed (' + response.status + ').'), { code: data.code || '' });
                 const answer = (data.answer || data.output_text || '').trim();
                 if (!answer) throw new Error('The AI returned an empty answer.');
                 thinking.remove();
                 appendChatMessage('assistant', answer);
                 parentChatMessages.push({ role: 'assistant', content: answer });
-                setParentAIStatus('AI connected', 'green');
+                setParentAIStatus('AI connected · Secure session', 'green');
             } catch (err) {
                 thinking.remove();
-                appendChatMessage('assistant', `I couldn't reach the Tornadoes AI right now. ${err.message}\n\nThe chat needs the secure AI backend connected before it can answer questions.`);
-                setParentAIStatus('Backend not connected', 'red');
+                appendChatMessage('assistant', err.message || 'Tornadoes AI could not complete this request.');
+                if (err.code === 'AI_BILLING_REQUIRED') setParentAIStatus('OpenAI credits required', 'amber');
+                else if (err.code === 'AUTH_REQUIRED' || err.code === 'AUTH_INVALID') setParentAIStatus('Sign-in required', 'amber');
+                else if (err.code === 'AI_NOT_CONFIGURED') setParentAIStatus('AI configuration required', 'red');
+                else setParentAIStatus('Assistant temporarily unavailable', 'red');
             } finally {
                 parentAiBusy = false;
                 send.disabled = false;
