@@ -3362,14 +3362,18 @@ body { overflow-x: hidden; }
                 .eq('is_active', true)
                 .maybeSingle();
             if (staffResult.error) throw staffResult.error;
-            const isStaff = !!staffResult.data;
-            const isAdmin = isStaff && staffResult.data.role === 'admin';
+            const staffRole = staffResult.data && staffResult.data.role;
+            const isStaff = !!staffResult.data && ['admin', 'coach'].includes(staffRole);
+            const isAdmin = isStaff && staffRole === 'admin';
+            const isCoach = isStaff && staffRole === 'coach';
             const coachEntryAccess = document.getElementById('asaj-coach-entry-access');
             if (coachEntryAccess) coachEntryAccess.classList.toggle('hidden', !isStaff);
             const signedInNote = document.querySelector('#athlete-portal-dashboard .text-xs.text-slate-500.mt-1');
             if (signedInNote) signedInNote.textContent = isAdmin
                 ? 'Administrator access: all active athlete profiles and assessment records are available.'
-                : 'Only profiles assigned to this account are shown.';
+                : isCoach
+                    ? 'Coach access: all active athlete profiles and assessment records are available.'
+                    : 'Only profiles assigned to this account are shown.';
 
             const profileResult = await client.from('artistic_athlete_profiles')
                 .select('id,full_name,category,date_of_birth,school_name,athlete_whatsapp,mother_name,mother_whatsapp,mother_email,father_name,father_whatsapp,father_email,avatar_url')
@@ -3564,7 +3568,11 @@ const buildAssessmentChart = function(title, chartItems) {
                 document.getElementById('training-attendance-panel').classList.add('hidden');
                 document.getElementById('competition-admin-panel').classList.add('hidden');
             }
-            portalStatus(isAdmin ? 'Admin dashboard loaded. All active athlete records are available.' : 'Your linked athlete records have loaded.', false);
+            portalStatus(isAdmin
+                ? 'Admin dashboard loaded. All active athlete records are available.'
+                : isCoach
+                    ? 'Coach dashboard loaded. All active athlete records are available.'
+                    : 'Your linked athlete records have loaded.', false);
         }
 
         function renderTrainingAttendanceRoster() {
