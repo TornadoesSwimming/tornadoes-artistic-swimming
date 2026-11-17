@@ -4170,7 +4170,7 @@ const buildAssessmentChart = function(title, chartItems) {
         }
 
         fetch(PARENT_AI_ENDPOINT, { method: 'GET' }).then(r => {
-            if (r.ok) setParentAIStatus('AI connected', 'green');
+            if (r.ok) setParentAIStatus('Backend online · Secure login required', 'green');
             else setParentAIStatus('Backend not connected', 'red');
         }).catch(() => setParentAIStatus('Backend not connected', 'red'));
 
