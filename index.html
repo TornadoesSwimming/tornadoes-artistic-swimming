@@ -3421,6 +3421,29 @@ body { overflow-x: hidden; }
                 if (planResult.error) throw planResult.error;
                 const plan = planResult.data || {};
 
+                // Keep focus-area scores aligned with the latest published assessment data.
+                const syncFocusScores = function(focusText, area) {
+                    const latest = assessments.find(function(item) {
+                        return String(item.assessment_area || '').toLowerCase() === area.toLowerCase();
+                    });
+                    if (!latest) return focusText || '';
+                    let synced = focusText || '';
+                    (latest.items || []).forEach(function(item) {
+                        if (item.score == null || item.result_status === 'unrecorded') return;
+                        const escapedName = String(item.test_name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\                const plan = planResult.data || {};
+
+                const participantResult');
+                        if (!escapedName) return;
+                        const pattern = new RegExp('(^|[;\\n])([ \\t]*' + escapedName + '[ \\t]*[—–-][ \\t]*)\\d+(?:\\.\\d+)?[ \\t]*/[ \\t]*\\d+', 'gi');
+                        synced = synced.replace(pattern, function(match, prefix, label) {
+                            return prefix + label + String(item.score) + '/' + String(item.max_score == null ? 5 : item.max_score);
+                        });
+                    });
+                    return synced;
+                };
+                plan.gym_focus_areas = syncFocusScores(plan.gym_focus_areas, 'Gym');
+                plan.pool_focus_areas = syncFocusScores(plan.pool_focus_areas, 'Pool');
+
                 const participantResult = await client.from('artistic_competition_participants')
                     .select('event_id').eq('athlete_id', athleteId);
                 if (participantResult.error) throw participantResult.error;
@@ -3451,9 +3474,12 @@ body { overflow-x: hidden; }
                 const durationText = function(minutes) {
                     return Math.floor(minutes / 60) + 'h ' + (minutes % 60) + 'm';
                 };
+                const cleanLabel = function(value) {
+                    return String(value || '—').trim().replace(/\\s+/g, ' ').replace(/\\b\\w/g, function(ch) { return ch.toUpperCase(); });
+                };
                 const attendanceHtml = attendance.length ? attendance.map(function(row) {
                     const session = row.session || {};
-                    return '<tr><td>' + esc(session.session_date) + '</td><td>' + esc(session.session_name) + '</td><td>' + esc(session.category) + '</td><td>' + esc(row.attendance_status) + '</td><td>' + esc(row.arrival_time ? String(row.arrival_time).slice(0,5) : '—') + '</td><td>' + esc(row.departure_time ? String(row.departure_time).slice(0,5) : '—') + '</td><td>' + (row.duration == null ? '—' : durationText(row.duration)) + '</td><td>' + esc(session.location) + '</td></tr>';
+                    return '<tr><td>' + esc(session.session_date) + '</td><td>' + esc(cleanLabel(session.session_name)) + '</td><td>' + esc(session.category) + '</td><td>' + esc(cleanLabel(row.attendance_status)) + '</td><td>' + esc(row.arrival_time ? String(row.arrival_time).slice(0,5) : '—') + '</td><td>' + esc(row.departure_time ? String(row.departure_time).slice(0,5) : '—') + '</td><td>' + (row.duration == null ? '—' : durationText(row.duration)) + '</td><td>' + esc(String(session.location || '—').trim().toUpperCase()) + '</td></tr>';
                 }).join('') : '<tr><td colspan="8">No attendance records available.</td></tr>';
                 const assessmentHtml = assessments.length ? assessments.map(function(assessment) {
                     const itemRows = assessment.items.map(function(item) {
