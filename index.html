@@ -3158,6 +3158,28 @@ body { overflow-x: hidden; }
             }
         }
 
+        async function resendGuardianAccess(athleteId, guardianType, buttonElement) {
+            const athlete = portalActiveAthletes.find(function(item) { return item.id === athleteId; });
+            if (!athlete) return portalStatus('Athlete profile not found.', true);
+            const email = guardianType === 'father' ? athlete.father_email : athlete.mother_email;
+            if (!email) return portalStatus('No registered parent email is available.', true);
+            if (!window.confirm('Send a secure sign-in link to the existing account ' + email + '?')) return;
+            try {
+                if (buttonElement) { buttonElement.disabled = true; buttonElement.textContent = 'Sending…'; }
+                const client = getTornadoesPortalClient();
+                const result = await client.functions.invoke('artistic-guardian-invitations', {
+                    body: { action: 'resend_parent_access', athlete_id: athleteId, email: email }
+                });
+                if (result.error) throw result.error;
+                if (result.data && result.data.error) throw new Error(result.data.error);
+                if (buttonElement) buttonElement.textContent = 'Access email sent';
+                portalStatus('A secure sign-in link was requested for ' + email + '. No new account was created.', false);
+            } catch (error) {
+                if (buttonElement) { buttonElement.disabled = false; buttonElement.textContent = 'Resend access email'; }
+                portalStatus(error.message || 'Unable to send the access email.', true);
+            }
+        }
+
         async function sendGuardianInvitation(athleteId, guardianType, buttonElement) {
             const athlete = portalActiveAthletes.find(function(item) { return item.id === athleteId; });
             if (!athlete) return portalStatus('Athlete profile not found.', true);
@@ -3639,7 +3661,9 @@ body { overflow-x: hidden; }
                             return '<div class="mt-2 w-full rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800 text-center">' + label + ' Access · Active</div>';
                         }
                         if (link && link.access_status === 'pending') {
-                            return '<div class="mt-2 w-full rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-bold text-amber-800 text-center">' + label + ' Access · Pending</div>';
+                            return '<div class="mt-2 w-full rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-bold text-amber-800 text-center">' + label + ' Access · Pending</div>'
+                                + '<button type="button" onclick="resendGuardianAccess(\\'' + portalEscape(athlete.id) + '\\', \\''
+                                + type + '\\', this)" class="mt-1 w-full rounded-lg bg-white border border-amber-200 px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-100">Resend access email</button>';
                         }
                         return '<button type="button" onclick="sendGuardianInvitation(\'' + portalEscape(athlete.id) + '\', \''
                             + type + '\', this)" class="mt-2 w-full rounded-lg '
