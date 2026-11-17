@@ -3478,10 +3478,40 @@ body { overflow-x: hidden; }
                     const session = row.session || {};
                     return '<tr><td>' + esc(session.session_date) + '</td><td>' + esc(cleanLabel(session.session_name)) + '</td><td>' + esc(session.category) + '</td><td>' + esc(cleanLabel(row.attendance_status)) + '</td><td>' + esc(row.arrival_time ? String(row.arrival_time).slice(0,5) : '—') + '</td><td>' + esc(row.departure_time ? String(row.departure_time).slice(0,5) : '—') + '</td><td>' + (row.duration == null ? '—' : durationText(row.duration)) + '</td><td>' + esc(String(session.location || '—').trim().toUpperCase()) + '</td></tr>';
                 }).join('') : '<tr><td colspan="8">No attendance records available.</td></tr>';
+                const getAssessmentDomain = function(testName, savedDomain) {
+                    const key = String(testName || '').trim().toLowerCase().replace(/[-_]+/g, ' ').replace(/\\s+/g, ' ');
+                    const domains = {
+                        'swimming speed': 'Swimming',
+                        'head first sculling': 'Sculling Technique',
+                        'head-first sculling': 'Sculling Technique',
+                        'eggbeater': 'Technical & Speed',
+                        'eggbeaters': 'Technical & Speed',
+                        'barracuda': 'Technical',
+                        'body boost': 'Strength & Height',
+                        'ariana': 'Technical',
+                        'vertical hold': 'Strength & Balance',
+                        'push ups': 'Strength',
+                        'push-ups': 'Strength',
+                        'v ups': 'Core Strength',
+                        'v-ups': 'Core Strength',
+                        'tuck ups': 'Core Strength',
+                        'tuck-ups': 'Core Strength',
+                        'frog jumps': 'Leg Strength & Power',
+                        'back arch': 'Flexibility',
+                        'shoulder twist': 'Flexibility & Mobility',
+                        'bridge': 'Flexibility & Strength',
+                        'right split': 'Flexibility',
+                        'left split': 'Flexibility',
+                        'middle split': 'Flexibility',
+                        'forward fold': 'Flexibility',
+                        'ballet leg extension': 'Flexibility & Leg Strength'
+                    };
+                    return domains[key] || savedDomain || '—';
+                };
                 const assessmentHtml = assessments.length ? assessments.map(function(assessment) {
                     const itemRows = assessment.items.map(function(item) {
                         const score = item.result_status === 'unrecorded' || item.score == null ? 'Not recorded' : esc(item.score) + ' / ' + esc(item.max_score);
-                        return '<tr><td>' + esc(item.test_name) + '</td><td>' + esc(item.domain) + '</td><td>' + score + '</td><td>' + esc(item.notes) + '</td></tr>';
+                        return '<tr><td>' + esc(item.test_name) + '</td><td>' + esc(getAssessmentDomain(item.test_name, item.domain)) + '</td><td>' + score + '</td><td>' + esc(item.notes) + '</td></tr>';
                     }).join('');
                     return '<section class="card"><h3>' + esc(assessment.assessment_name) + ' — ' + esc(assessment.assessment_area) + '</h3><p class="muted">' + esc(assessment.assessment_date) + ' · ' + (assessment.score_percent == null ? 'Partial assessment' : esc(Number(assessment.score_percent).toFixed(1)) + '%') + (assessment.result_score != null ? ' · ' + esc(assessment.result_score) + ' / ' + esc(assessment.max_score) : '') + (assessment.percentile != null ? ' · ASAJ percentile: ' + esc(Number(assessment.percentile).toFixed(1)) + '%' : '') + '</p><table><thead><tr><th>Test</th><th>Domain</th><th>Score</th><th>Notes</th></tr></thead><tbody>' + (itemRows || '<tr><td colspan="4">No item scores recorded.</td></tr>') + '</tbody></table></section>';
                 }).join('') : '<p class="muted">No published assessment records available.</p>';
