@@ -216,10 +216,6 @@ body { overflow-x: hidden; }
 <button class="tab-btn px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 flex items-center gap-2" id="tab-ai-eval" onclick="switchTab('ai-eval')">
 <i class="fas fa-chart-line text-emerald-600"></i> AI Evaluator &amp; Voice
             </button>
-<button class="tab-btn px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 flex items-center gap-2" id="tab-ai-assistant" onclick="switchTab('ai-assistant')">
-<i class="fas fa-robot text-teal-600"></i> Parent &amp; Athlete AI
-            </button>
-
 <button class="tab-btn px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 flex items-center gap-2" id="tab-athlete-profile" onclick="switchTab('athlete-profile')">
 <i class="fas fa-user-shield text-emerald-600"></i> Athlete Profile
 </button>
@@ -2671,50 +2667,7 @@ body { overflow-x: hidden; }
 <h2 class="text-xl font-bold text-slate-900 mb-2">AI Coach Evaluator &amp; Count Voice Synthesizer</h2>
 <p class="text-xs text-slate-500 mb-4">Analyze judge notes and generate rhythm counts using AI audio.</p>
 </div>
-</div><div class="tab-section hidden space-y-6" id="section-ai-assistant">
-<div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-  <div class="bg-gradient-to-r from-slate-950 via-teal-950 to-slate-900 text-white p-6">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-      <div>
-        <div class="text-xs font-black uppercase tracking-widest text-teal-300">Tornadoes AI</div>
-        <h2 class="text-2xl font-extrabold mt-1">Parent &amp; Athlete AI Assistant</h2>
-        <p class="text-sm text-slate-300 mt-2 max-w-2xl">Ask questions naturally. The assistant uses the Tornadoes Hub knowledge base and keeps the conversation context while you ask follow-up questions.</p>
-      </div>
-      <div id="ai-status" class="inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-xl px-3 py-2 text-xs font-bold self-start">
-        <span class="w-2 h-2 rounded-full bg-amber-400"></span> Connecting…
-      </div>
-    </div>
-  </div>
-
-  <div class="p-4 sm:p-6">
-    <div class="flex flex-wrap gap-2 mb-4">
-      <button onclick="askParentAssistant('My daughter is a Supernovice. What does that level mean and what should we expect this year?')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-lg">Supernovice</button>
-      <button onclick="askParentAssistant('What equipment does my athlete need for training?')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-lg">Equipment</button>
-      <button onclick="askParentAssistant('Can you explain the National Team pathway in simple terms?')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-lg">National Team</button>
-      <button onclick="askParentAssistant('What is a Base Mark and why can an athlete receive one?')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-lg">Base Mark</button>
-      <button onclick="askParentAssistant('Can you explain hybrids to a parent who does not know artistic swimming?')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-lg">Hybrids</button>
-      <button onclick="askParentAssistant('What are the important dates in the 2026–2027 season?')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 rounded-lg">Season</button>
-    </div>
-
-    <div id="chat-history" class="min-h-[360px] max-h-[560px] overflow-y-auto bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3" aria-live="polite">
-      <div class="bg-teal-50 border border-teal-100 text-teal-950 p-4 rounded-2xl max-w-3xl">
-        <div class="font-bold text-sm mb-1">Tornadoes AI Assistant</div>
-        <div class="text-sm leading-relaxed">Hi! Ask me anything about the Tornadoes program, categories, training, competitions, World Aquatics rules, hybrids, Base Marks or the National Team pathway. You can ask a follow-up question and I’ll use the conversation context.</div>
-      </div>
-    </div>
-
-    <div class="mt-4 flex gap-2">
-      <textarea id="parent-query" rows="2" class="flex-1 bg-white border border-slate-300 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Ask a question in English or Spanish…" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();askParentAssistant();}"></textarea>
-      <button id="parent-send" class="bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-5 rounded-xl text-sm self-stretch" onclick="askParentAssistant()">Send</button>
-    </div>
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-2">
-      <p class="text-[10px] text-slate-400">Ctrl/Cmd + Enter to send. The assistant is grounded in the Hub knowledge base and should not invent requirements.</p>
-      <button onclick="clearParentChat()" class="text-[10px] font-bold text-slate-500 hover:text-slate-800">Clear conversation</button>
-    </div>
-  </div>
-</div>
-</div>
-<div class="tab-section hidden space-y-6" id="section-athlete-profile">
+</div><div class="tab-section hidden space-y-6" id="section-athlete-profile">
   <div class="rounded-2xl bg-gradient-to-r from-slate-900 via-teal-900 to-slate-900 text-white p-6 shadow-md">
     <div class="flex items-center gap-3">
       <div class="w-12 h-12 rounded-xl bg-teal-400/20 border border-teal-300/40 flex items-center justify-center text-2xl"><i class="fas fa-user-shield"></i></div>
