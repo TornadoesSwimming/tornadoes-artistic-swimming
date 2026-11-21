@@ -2775,7 +2775,7 @@ body { overflow-x: hidden; }
   </section>
 
   <section id="ht-area-content" class="hidden rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm" aria-live="polite"></section>
-  <section id="ht-extra-card" class="hidden rounded-2xl border border-orange-200 bg-orange-50 p-4 sm:p-6 shadow-sm"><div class="flex items-center gap-2"><i class="fas fa-house-circle-check text-orange-600 text-xl"></i><h3 class="text-lg font-extrabold text-slate-900">EXTRA WORK AT HOME</h3><span class="rounded-full bg-orange-200 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-orange-900">Intermediate &amp; Up only</span></div><p class="mt-2 text-sm text-slate-700">Athletes in Intermediate, Age Group 12&amp;U, Youth and Juniors are encouraged to complete at least one home-training session each day when their schedule allows. These sessions help reinforce technique, strength, flexibility and body control between pool practices. Home training supports but does not replace coached pool training.</p><div class="mt-4 rounded-xl border border-cyan-200 bg-white p-4"><h4 class="font-extrabold text-slate-900">SUPPORT SCULLING WORK AT HOME</h4><p class="mt-1 text-sm text-slate-700">Practise support-sculling movements on land using a resistance band (TheraBand), following the coach-selected routine.</p><p class="mt-2 text-sm"><a class="font-bold text-teal-700 underline underline-offset-2" href="https://youtu.be/mj546npZ-U4?si=y9oF-JdvFFlgOMAH" target="_blank" rel="noopener noreferrer">Watch Support Sculling video <i class="fas fa-arrow-up-right-from-square text-[10px]"></i></a></p><p class="mt-2 text-xs text-slate-500">Equipment: resistance band (TheraBand). Category-specific doses will be added after the routine is reviewed.</p></div></section>
+  
   <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900"><strong>Training safety:</strong> Exercise quality comes before quantity. Work within a comfortable range, never force a stretch or train through pain. Repetitions and holds are targets, not obligations.</div>
 </div>
 
@@ -2803,8 +2803,6 @@ body { overflow-x: hidden; }
           });
           const label = htCategories[key].label;
           document.getElementById("ht-selected-category").textContent = "Selected: " + label;
-          const extraCard = document.getElementById("ht-extra-card");
-          if (extraCard) extraCard.classList.toggle("hidden", ["supernovice","novice"].includes(key));
           const extraButton = document.getElementById("ht-extra-button");
           if (extraButton) extraButton.classList.toggle("hidden", ["supernovice","novice"].includes(key));
           const panel = document.getElementById("ht-area-content");
